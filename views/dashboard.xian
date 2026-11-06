@@ -1,0 +1,35 @@
+{{> head}}
+<body>
+<div class="app-shell">
+  <aside class="sidebar"><div class="side-brand"><div class="brand-mark">✚</div><div><strong>Pharma</strong><small>INVENTORY</small></div></div>
+    <nav><a class="active" href="#overview"><span>⌂</span>Overview</a><a href="#inventory"><span>▦</span>Inventory</a>{{#if isAdmin}}<a href="#staff"><span>♙</span>Staff</a><a href="#logs"><span>≡</span>Stock logs</a>{{/if}}</nav>
+    <div class="user-card"><div class="avatar">{{user.name}}</div><div><b>{{user.name}}</b><small>{{user.role}}</small></div><a href="/logout" title="Logout">↪</a></div>
+  </aside>
+  <main>
+    <header><div><h1>Dashboard</h1><p>Here’s what’s happening with your inventory today.</p></div>{{#if isAdmin}}<button class="primary-btn" onclick="openAddProduct()">＋ Add Product</button>{{/if}}</header>
+    <section id="overview" class="stats-grid">
+      <article class="stat"><div class="stat-icon blue">▦</div><div><span>Total inventory value</span><strong>₱{{value}}</strong><small>Across {{total}} products</small></div></article>
+      <article class="stat"><div class="stat-icon orange">!</div><div><span>Low stock items</span><strong>{{lowCount}}</strong><small>Below 25 units</small></div></article>
+      <article class="stat"><div class="stat-icon pink">◷</div><div><span>Expiring soon</span><strong>{{expiringCount}}</strong><small>Within 45 days</small></div></article>
+      <article class="stat"><div class="stat-icon green">↗</div><div><span>Stock activity</span><strong>{{logs.length}}</strong><small>Recent movements</small></div></article>
+    </section>
+    <section class="alert-grid"><div class="panel"><div class="panel-title"><h2><span class="dot orange-dot"></span>Low Stock Alert</h2><a href="#inventory">View inventory →</a></div>
+      {{#each low}}<div class="alert-row"><div><b>{{this.name}}</b><small>{{this.category}}</small></div><span>{{this.quantity}} left</span></div>{{/each}}</div>
+      <div class="panel"><div class="panel-title"><h2><span class="dot pink-dot"></span>Expiry Alerts</h2></div>
+      {{#each expiring}}<div class="alert-row"><div><b>{{this.name}}</b><small>Expires {{this.expiry}}</small></div><span class="expiry-badge">Soon</span></div>{{/each}}</div></section>
+    <section id="inventory" class="panel inventory-panel"><div class="panel-title"><div><h2>Inventory</h2><p>Track and manage your pharmacy products</p></div></div>
+      <div class="toolbar"><input id="search" type="search" placeholder="Search products…" oninput="filterInventory()"><select id="categoryFilter" onchange="filterInventory()"><option value="">All categories</option><option>Antibiotics</option><option>Pain Relief</option><option>Antihistamines</option><option>Diabetes</option><option>Digestive Health</option><option>Supplements</option><option>Respiratory</option></select></div>
+      <div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>QUANTITY</th><th>EXPIRY DATE</th><th>UNIT PRICE</th><th></th></tr></thead><tbody id="productRows">
+      {{#each inventory}}<tr data-name="{{this.name}}" data-category="{{this.category}}"><td><div class="product"><span>{{this.name}}</span></div></td><td><span class="category">{{this.category}}</span></td><td><div class="quantity {{#if isLow}}low{{/if}}"><strong>{{this.quantity}}</strong><small>units</small></div></td><td>{{this.expiry}}</td><td>₱{{this.price}}</td><td><button class="row-menu" onclick="toggleMenu(this)">⋮</button><div class="row-actions"><button onclick="adjustStock({{this.id}},'{{this.name}}')">Update stock</button><button onclick="dispense({{this.id}},'{{this.name}}')">Dispense</button>{{#if ../isAdmin}}<button onclick="openProductEdit({{this.id}}, '{{this.name}}', '{{this.category}}', {{this.quantity}}, '{{this.expiry}}', {{this.price}})">Edit</button><form method="POST" action="/products/{{this.id}}/delete"><button class="danger">Delete</button></form>{{/if}}</div></td></tr>{{/each}}
+      </tbody></table></div>
+    </section>
+    {{#if isAdmin}}<section class="bottom-grid"><div id="staff" class="panel"><div class="panel-title"><h2>Staff Accounts</h2><button class="small-btn" onclick="openModal('staffModal')">＋ Add staff</button></div>{{#each users}}<div class="person"><div class="avatar small">{{this.name}}</div><div><b>{{this.name}}</b><small>{{this.email}}</small></div><span class="role">{{this.role}}</span>{{#unless this.admin}}<form method="POST" action="/staff/{{this.id}}/delete"><button class="delete-icon">×</button></form>{{/unless}}</div>{{/each}}</div>
+    <div id="logs" class="panel"><div class="panel-title"><h2>Recent Stock Logs</h2></div>{{#each logs}}<div class="log"><span class="log-icon">↔</span><div><b>{{this.product}}</b><small>{{this.action}} · {{this.user}}</small></div><strong>{{this.amount}}</strong></div>{{/each}}</div></section>{{/if}}
+  </main>
+</div>
+<div id="productModal" class="modal"><form method="POST" action="/products"><button type="button" class="modal-close" onclick="closeModal('productModal')">×</button><h2>Add product</h2><div class="form-grid"><label>Product name<input name="name" required></label><label>Category<select name="category"><option>Antibiotics</option><option>Pain Relief</option><option>Antihistamines</option><option>Diabetes</option><option>Digestive Health</option><option>Supplements</option><option>Respiratory</option></select></label><label>Quantity<input name="quantity" type="number" min="0" required></label><label>Expiry date<input name="expiry" type="date" required></label><label>Unit price<input name="price" type="number" step="0.01" min="0" required></label></div><button class="primary-btn" type="submit">Save product</button></form></div>
+<div id="stockModal" class="modal"><form id="stockForm" method="POST"><button type="button" class="modal-close" onclick="closeModal('stockModal')">×</button><h2 id="stockTitle">Update stock</h2><label>Quantity <small>(use negative to reduce)</small><input name="quantity" type="number" required></label><button class="primary-btn" type="submit">Update</button></form></div>
+<div id="dispenseModal" class="modal"><form id="dispenseForm" method="POST"><button type="button" class="modal-close" onclick="closeModal('dispenseModal')">×</button><h2 id="dispenseTitle">Dispense product</h2><label>Quantity to dispense<input name="quantity" type="number" min="1" required></label><button class="primary-btn" type="submit">Record dispensing</button></form></div>
+<div id="staffModal" class="modal"><form method="POST" action="/staff"><button type="button" class="modal-close" onclick="closeModal('staffModal')">×</button><h2>Add staff member</h2><div class="form-grid"><label>Name<input name="name" required></label><label>Email<input name="email" type="email" required></label><label>Password<input name="password" value="staff123" required></label><label>Role<select name="role"><option value="staff">Staff</option><option value="admin">Admin</option></select></label></div><button class="primary-btn" type="submit">Add staff</button></form></div>
+<script src="/js/pharma.js"></script>
+{{> footer }}

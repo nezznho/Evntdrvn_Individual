@@ -1,0 +1,10 @@
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+function toggleMenu(button){document.querySelectorAll('.row-actions').forEach(x=>{if(x!==button.nextElementSibling)x.classList.remove('open')});button.nextElementSibling.classList.toggle('open')}
+function adjustStock(id,name){document.getElementById('stockTitle').textContent='Update '+name;document.getElementById('stockForm').action='/products/'+id+'/stock';openModal('stockModal')}
+function dispense(id,name){document.getElementById('dispenseTitle').textContent='Dispense '+name;document.getElementById('dispenseForm').action='/products/'+id+'/dispense';openModal('dispenseModal')}
+function openAddProduct(){const modal=document.getElementById('productModal');const form=modal.querySelector('form');form.action='/products';form.querySelector('h2').textContent='Add product';form.reset();openModal('productModal')}
+function openProductEdit(id,name,category,quantity,expiry,price){const modal=document.getElementById('productModal');const form=modal.querySelector('form');form.action='/products/'+id+'/edit';form.querySelector('h2').textContent='Edit product';form.elements.name.value=name;form.elements.category.value=category;form.elements.quantity.value=quantity;form.elements.expiry.value=expiry;form.elements.price.value=price;openModal('productModal')}
+function filterInventory(){const q=document.getElementById('search').value.toLowerCase();const c=document.getElementById('categoryFilter').value.toLowerCase();document.querySelectorAll('#productRows tr').forEach(row=>{const matchName=row.dataset.name.toLowerCase().includes(q);const matchCat=!c||row.dataset.category.toLowerCase()===c;row.style.display=matchName&&matchCat?'':'none'})}
+document.addEventListener('click',e=>{if(!e.target.matches('.row-menu'))document.querySelectorAll('.row-actions').forEach(x=>x.classList.remove('open'))});
