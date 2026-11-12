@@ -33,18 +33,39 @@ export const dashboardPage = (req, res) => res.redirect("/dashboard");
 
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ where: { email } });
+  // paranoid: false so a deactivated account gets a clear message instead of "invalid password".
+  const user = await User.findOne({ where: { email }, paranoid: false });
   if (!user || user.password !== password) return res.render("login", { title: "Login", layout: false, error: "Invalid email or password." });
+  if (user.deletedAt) return res.render("login", { title: "Login", layout: false, error: "This account has been deactivated. Please contact the administrator." });
   req.session.user = { id: user.id, name: user.name, email: user.email, role: user.role };
   res.redirect("/dashboard");
 };
 
 export const registerUser = async (req, res) => {
   const { name, email, password } = req.body;
-  const existing = await User.findOne({ where: { email } });
+  const existing = await User.findOne({ where: { email }, paranoid: false }); // includes deactivated accounts
   if (existing) return res.render("register", { title: "Register", layout: false, error: "That email is already registered." });
   const user = await User.create({ name, email, password, role: "staff" });
   req.session.user = { id: user.id, name, email, role: "staff" }; res.redirect("/dashboard");
 };
 
 export const logoutUser = (req, res) => req.session.destroy(() => res.redirect("/login"));
+
+// Route guards. Re-reading the user on each request means a deactivated account is signed out immediately.
+// JSON endpoints (/api/...) get a 401 instead of a redirect so fetch() callers can react to it.
+export const requireAuth = async (req, res, next) => {
+  const deny = () => req.originalUrl.startsWith("/api/")
+    ? res.status(401).json({ error: "Your session has ended. Please sign in again." })
+    : res.redirect("/login");
+  try {
+    if (!req.session.user) return deny();
+    const user = await User.findByPk(req.session.user.id, { attributes: ["id", "name", "email", "role"] });
+    if (!user) return req.session.destroy(() => deny());
+    req.user = user.get({ plain: true });
+    req.session.user = req.user;
+    next();
+  } catch (err) { next(err); }
+};
+
+export const requireAdmin = (req, res, next) =>
+  req.user?.role === "admin" ? next() : res.status(403).send("Admin access required");

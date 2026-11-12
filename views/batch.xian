@@ -1,0 +1,49 @@
+{{> head}}
+<body>
+<div class="app-shell">
+  {{> sidebar}}
+  <main id="main-content" tabindex="-1">
+    <header><div><a class="link" href="/dashboard#batches">← Back to lots</a><h1>Lot <code class="lot lot-lg">{{batch.batchNumber}}</code></h1><p>{{product.name}} · {{product.category}}{{#if product.deletedAt}} · <span class="badge badge-gray">Product archived</span>{{/if}}</p></div>
+      <div>{{#if isActive}}{{#if isExpired}}<span class="badge badge-red">Expired</span>{{else}}<span class="badge badge-green">Active</span>{{/if}}{{else}}<span class="badge badge-amber">{{batch.status}}</span>{{/if}}</div></header>
+    {{> flash}}
+    <section class="stats-grid">
+      <article class="stat"><div class="stat-icon blue">▦</div><div><span>On hand</span><strong>{{batch.quantity}}</strong><small>units in this lot</small></div></article>
+      <article class="stat"><div class="stat-icon pink">◷</div><div><span>Expiry date</span><strong>{{batch.expiryDate}}</strong><small>{{#if isExpired}}Expired{{else}}{{days}} days left{{/if}}</small></div></article>
+      <article class="stat"><div class="stat-icon green">↗</div><div><span>Dispensed (net of voids)</span><strong>{{dispensedTotal}}</strong><small>units to patients</small></div></article>
+      <article class="stat"><div class="stat-icon orange">⚑</div><div><span>Manufacturer</span><strong class="stat-text">{{#if batch.manufacturer}}{{batch.manufacturer}}{{else}}—{{/if}}</strong><small>received {{receivedText}}</small></div></article>
+    </section>
+
+    {{#if isAdmin}}{{#if isActive}}
+    <section class="alert-grid">
+      <form class="panel" method="POST" action="/batches/{{batch.id}}/expire" onsubmit="return confirm('Write off all {{batch.quantity}} unit(s) of lot {{batch.batchNumber}} as EXPIRED?')">
+        <div class="panel-title"><h2><span class="dot orange-dot"></span>Expired write-off</h2></div>
+        <p class="hint">Removes the remaining stock from sellable inventory and logs an <span class="badge badge-orange">Expired write-off</span>. A reason is required if the lot has not expired yet.</p>
+        <label class="stack">Reason<input name="reason" placeholder="{{#if isExpired}}Expired stock pulled from shelf{{else}}e.g. Damaged packaging{{/if}}"></label>
+        <button class="small-btn">Write off lot</button>
+      </form>
+      <form class="panel" method="POST" action="/batches/{{batch.id}}/recall" onsubmit="return confirm('Recall and quarantine lot {{batch.batchNumber}}?')">
+        <div class="panel-title"><h2><span class="dot pink-dot"></span>Recall lot</h2></div>
+        <p class="hint">For FDA or manufacturer recalls. The lot is quarantined and can no longer be dispensed. Use the history below to trace every unit already dispensed.</p>
+        <label class="stack">Recall reason / notice no. (required)<input name="reason" minlength="5" required placeholder="e.g. FDA Advisory No. 2026-123"></label>
+        <button class="small-btn danger">Recall lot</button>
+      </form>
+    </section>
+    {{/if}}{{/if}}
+
+    <section class="panel inventory-panel"><div class="panel-title"><div><h2>Lot movement history (stock card)</h2><p>Newest first. The running balance is this lot’s quantity after each movement.</p></div></div>
+      <div class="table-wrap"><table class="log-table"><thead><tr><th>DATE / TIME</th><th>ACTION</th><th>QTY</th><th>LOT BALANCE</th><th>STAFF</th><th>REFERENCE / REASON</th></tr></thead><tbody>
+      {{#each logs}}<tr class="{{#if this.isVoid}}row-void{{/if}} {{#if this.isVoided}}row-voided{{/if}}">
+        <td><small>{{this.time}}</small></td>
+        <td><span class="badge {{this.badge}}">{{this.label}}</span>{{#if this.isVoided}} <span class="badge badge-outline-red">VOIDED</span>{{/if}}</td>
+        <td class="{{this.qtyClass}}"><strong>{{this.amountText}}</strong></td>
+        <td>{{this.running}}</td>
+        <td>{{this.user}}</td>
+        <td class="ref-cell">{{#if this.reference}}<small class="muted">{{this.reference}}</small>{{/if}}{{#if this.isVoid}}<small class="void-of">↩ reverses log #{{this.voidOfId}}</small>{{/if}}{{#if this.reason}}<small class="reason">“{{this.reason}}”</small>{{/if}}</td>
+      </tr>{{else}}<tr><td colspan="6" class="empty">No movements recorded for this lot.</td></tr>{{/each}}
+      </tbody></table></div>
+    </section>
+  </main>
+</div>
+<script src="/js/pharma.js"></script>
+{{> keyboard}}
+{{> footer }}

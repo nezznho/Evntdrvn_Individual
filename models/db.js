@@ -26,7 +26,9 @@
     
 import { Sequelize } from "sequelize";
 
-export const sequelize = new Sequelize("Pharmacare", "root", "", {
+// DB_NAME can be overridden (e.g. DB_NAME=Pharmacare_test) to test migrations without touching real data.
+export const sequelize = new Sequelize(process.env.DB_NAME || "Pharmacare", "root", "", {
   host: "localhost",
-  dialect: "mysql"
+  dialect: "mysql",
+  logging: process.env.DB_LOG ? console.log : false
 });

@@ -1,0 +1,2 @@
+{{#each success_msg}}<div class="flash flash-success">✓ {{this}}</div>{{/each}}
+{{#each error_msg}}<div class="flash flash-error">⚠ {{this}}</div>{{/each}}

@@ -1,0 +1,30 @@
+<!-- Keyboard layer: command palette (Ctrl/Cmd+K), shortcut help (?), toasts. Behaviour lives in /js/keyboard.js. -->
+<div id="kbPalette" class="kb-layer fixed inset-0 z-50 hidden items-start justify-center bg-slate-900/40 px-4 pt-[12vh]">
+  <div role="dialog" aria-modal="true" aria-labelledby="kbPaletteTitle" class="w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-slate-200">
+    <h2 id="kbPaletteTitle" class="sr-only">Command palette</h2>
+    <div class="flex items-center gap-2 border-b border-slate-200 px-4">
+      <span aria-hidden="true" class="text-slate-400">⌕</span>
+      <input id="kbPaletteInput" type="text" role="combobox" aria-expanded="true" aria-controls="kbPaletteList" aria-autocomplete="list" autocomplete="off" spellcheck="false" data-scan-accept
+        placeholder="Type a command, product or lot number…" class="w-full border-0 bg-transparent py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400">
+      <kbd>Esc</kbd>
+    </div>
+    <ul id="kbPaletteList" role="listbox" aria-label="Results" class="max-h-80 overflow-y-auto py-1"></ul>
+    <div class="flex gap-4 border-t border-slate-100 bg-slate-50 px-4 py-2 text-[11px] text-slate-500">
+      <span><kbd>↑</kbd> <kbd>↓</kbd> select</span><span><kbd>Enter</kbd> run</span><span><kbd>Esc</kbd> close</span><span class="ml-auto"><kbd>?</kbd> all shortcuts</span>
+    </div>
+  </div>
+</div>
+
+<div id="kbHelp" class="kb-layer fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/40 px-4">
+  <div role="dialog" aria-modal="true" aria-labelledby="kbHelpTitle" class="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl ring-1 ring-slate-200">
+    <div class="mb-4 flex items-center justify-between">
+      <h2 id="kbHelpTitle" class="text-base font-semibold text-slate-800">Keyboard shortcuts</h2>
+      <button type="button" data-kb-close aria-label="Close keyboard shortcuts" class="rounded-md px-2 text-xl leading-none text-slate-400 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">×</button>
+    </div>
+    <div id="kbHelpBody" class="grid gap-x-8 gap-y-5 sm:grid-cols-2"></div>
+    <p class="mt-5 text-xs text-slate-400">Shortcuts are ignored while typing in a field, except <kbd>Esc</kbd> and <kbd>Ctrl</kbd>+<kbd>K</kbd>. USB barcode scans work anywhere on the page.</p>
+  </div>
+</div>
+
+<div id="kbToasts" class="pointer-events-none fixed right-4 top-4 z-[70] flex w-[min(380px,calc(100vw-2rem))] flex-col gap-2" role="status" aria-live="polite"></div>
+<script src="/js/keyboard.js"></script>

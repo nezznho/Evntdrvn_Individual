@@ -103,6 +103,15 @@ fs.readdir(partialsDir, (err, files) => {
 
 app.use("/", router);
 
+// Last-resort error handler: log the error and show a readable page instead of crashing.
+app.use((err, req, res, next) => {
+  console.error(err);
+  const schemaOutdated = err.original?.code === "ER_BAD_FIELD_ERROR" || err.original?.code === "ER_NO_SUCH_TABLE";
+  res.status(500).send(schemaOutdated
+    ? "<h2>Database schema is out of date</h2><p>Stop the server, run <code>npm run migrate</code>, then start it again.</p>"
+    : "<h2>Something went wrong</h2><p>The error has been logged on the server.</p>");
+});
+
 export default app;
 
 if (!process.env.ELECTRON) {

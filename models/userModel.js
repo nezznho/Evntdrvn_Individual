@@ -30,6 +30,14 @@ export const User = sequelize.define("User", {
   name: { type: DataTypes.STRING, allowNull: false },
   email: { type: DataTypes.STRING, allowNull: false, unique: true },
   password: { type: DataTypes.STRING, allowNull: false },
-  role: { type: DataTypes.ENUM("admin", "staff"), allowNull: false, defaultValue: "staff" }
+  role: { type: DataTypes.ENUM("admin", "staff"), allowNull: false, defaultValue: "staff" },
+  deletedById: { type: DataTypes.INTEGER, allowNull: true }
+}, {
+  // Staff accounts are deactivated (deletedAt = NOW()), never removed, so their log history stays attributable.
+  paranoid: true,
+  hooks: {
+    beforeDestroy: (instance, options) => { if (options.force) throw new Error("Permanent deletion of staff accounts is disabled."); },
+    beforeBulkDestroy: options => { if (options.force) throw new Error("Permanent deletion of staff accounts is disabled."); }
+  }
 });
 export { sequelize }; 
