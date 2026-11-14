@@ -6,13 +6,11 @@
       <div class="login-icon">✚</div><h1>Welcome back</h1><p>Sign in to manage your pharmacy inventory</p>
       {{#if error}}<div class="alert error">{{error}}</div>{{/if}}
       <form method="POST" action="/login">
-        <label>Email address<input type="email" name="email" value="admin@pharma.com" required></label>
-        <label>Password<div class="password-wrap"><input type="password" name="password" value="admin123" required><span>◉</span></div></label>
+        <label>Email address<input type="email" name="email" placeholder="you@example.com" autocomplete="email" required></label>
+        <label>Password<div class="password-wrap"><input type="password" name="password" autocomplete="current-password" required><span>◉</span></div></label>
         <button class="primary-btn" type="submit">Sign in</button>
       </form>
-      <div class="demo-box"><span>Demo accounts</span><button type="button" onclick="fillLogin('admin@pharma.com','admin123')">Admin</button><button type="button" onclick="fillLogin('staff@pharma.com','staff123')">Staff</button></div>
       <a class="login-create" href="/register">Create an account</a>
     </section>
   </main>
-  <script>function fillLogin(e,p){const f=document.querySelector('form');f.email.value=e;f.password.value=p}</script>
 {{> footer }}

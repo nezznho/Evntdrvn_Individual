@@ -3,7 +3,7 @@
 <div class="app-shell">
   {{> sidebar}}
   <main id="main-content" tabindex="-1">
-    <header><div><h1>Dashboard</h1><p>Here’s what’s happening with your inventory today.</p></div>{{#if isAdmin}}<button class="primary-btn" data-action="add-product" aria-keyshortcuts="n" onclick="openAddProduct()">＋ Add Product <kbd>N</kbd></button>{{/if}}</header>
+    <header><div><h1>Dashboard</h1><p>Here’s what’s happening with your inventory today.</p></div>{{#if isAdmin}}<button class="primary-btn" data-action="add-product" aria-keyshortcuts="n" onclick="openAddProduct()">＋ Add Product</button>{{/if}}</header>
     {{> flash}}
     <section id="overview" class="stats-grid" aria-label="Overview">
       <article class="stat"><div class="stat-icon blue" aria-hidden="true">▦</div><div><span>Total inventory value</span><strong>₱{{value}}</strong><small>Across {{total}} products · {{lotCount}} active lots</small></div></article>
@@ -20,7 +20,7 @@
     </section>
 
     <section id="inventory" class="panel inventory-panel" aria-labelledby="inventoryHeading"><div class="panel-title"><div><h2 id="inventoryHeading">Inventory</h2><p>Quantities are the sum of active lots. They change only through logged stock movements.</p></div></div>
-      <div class="toolbar"><input id="search" type="search" data-search-input="products" aria-label="Search products" aria-keyshortcuts="/" placeholder="Search products…  /" oninput="filterInventory()"><select id="categoryFilter" data-filter="category" aria-label="Filter by category" aria-keyshortcuts="f" onchange="filterInventory()"><option value="">All categories</option><option>Antibiotics</option><option>Pain Relief</option><option>Antihistamines</option><option>Diabetes</option><option>Digestive Health</option><option>Supplements</option><option>Respiratory</option></select></div>
+      <div class="toolbar"><input id="search" type="search" data-search-input="products" aria-label="Search products" aria-keyshortcuts="/" placeholder="Search products…" oninput="filterInventory()"><select id="categoryFilter" data-filter="category" aria-label="Filter by category" aria-keyshortcuts="f" onchange="filterInventory()"><option value="">All categories</option><option>Antibiotics</option><option>Pain Relief</option><option>Antihistamines</option><option>Diabetes</option><option>Digestive Health</option><option>Supplements</option><option>Respiratory</option></select></div>
       <div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>QUANTITY</th><th>LOTS</th><th>NEAREST EXPIRY</th><th>UNIT PRICE</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody id="productRows" data-table="products">
       {{#each inventory}}<tr data-row="product" data-id="{{this.id}}" data-name="{{this.name}}" data-category="{{this.category}}" data-price="{{this.price}}" data-barcode="{{this.barcode}}" data-sellable="{{this.sellable}}" data-lots="{{this.dispenseOptions}}">
         <td><div class="product"><span>{{this.name}}</span></div></td>
@@ -38,7 +38,7 @@
     </section>
 
     <section id="batches" class="panel inventory-panel" aria-labelledby="batchesHeading"><div class="panel-title"><div><h2 id="batchesHeading">Batch / Lot Tracking</h2><p>Every unit belongs to a manufacturer lot. Open a lot for its full movement history, or to expire or recall it.</p></div></div>
-      <div class="toolbar"><input id="lotSearch" type="search" data-search-input="lots" aria-label="Search lots" aria-keyshortcuts="/" placeholder="Search lot number or product…  /" oninput="filterLots()"></div>
+      <div class="toolbar"><input id="lotSearch" type="search" data-search-input="lots" aria-label="Search lots" aria-keyshortcuts="/" placeholder="Search lot number or product…" oninput="filterLots()"></div>
       <div class="table-wrap"><table><thead><tr><th>LOT / BATCH NO.</th><th>PRODUCT</th><th>MANUFACTURER</th><th>ON HAND</th><th>EXPIRY</th><th>STATUS</th><th><span class="sr-only">History</span></th></tr></thead><tbody id="lotRows" data-table="lots">
       {{#each batches}}<tr data-row="lot" data-id="{{this.id}}" data-product-id="{{this.productId}}" data-search="{{this.batchNumber}} {{this.productName}}">
         <td><code class="lot">{{this.batchNumber}}</code></td><td>{{this.productName}}</td><td>{{#if this.manufacturer}}{{this.manufacturer}}{{else}}<small class="muted">—</small>{{/if}}</td>
