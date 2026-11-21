@@ -7,9 +7,9 @@
       <div>{{#if isActive}}{{#if isExpired}}<span class="badge badge-red">Expired</span>{{else}}<span class="badge badge-green">Active</span>{{/if}}{{else}}<span class="badge badge-amber">{{batch.status}}</span>{{/if}}</div></header>
     {{> flash}}
     <section class="stats-grid">
-      <article class="stat"><div class="stat-icon blue">▦</div><div><span>On hand</span><strong>{{batch.quantity}}</strong><small>units in this lot</small></div></article>
+      <article class="stat"><div class="stat-icon blue">▦</div><div><span>On hand</span><strong>{{batch.quantity}}</strong><small>{{unitText}} in this lot{{#if boxText}} · {{boxText}}{{/if}}</small></div></article>
       <article class="stat"><div class="stat-icon pink">◷</div><div><span>Expiry date</span><strong>{{batch.expiryDate}}</strong><small>{{#if isExpired}}Expired{{else}}{{days}} days left{{/if}}</small></div></article>
-      <article class="stat"><div class="stat-icon green">↗</div><div><span>Dispensed (net of voids)</span><strong>{{dispensedTotal}}</strong><small>units to patients</small></div></article>
+      <article class="stat"><div class="stat-icon green">↗</div><div><span>Sold via POS (net of voids)</span><strong>{{dispensedTotal}}</strong><small>{{unitText}} to customers</small></div></article>
       <article class="stat"><div class="stat-icon orange">⚑</div><div><span>Manufacturer</span><strong class="stat-text">{{#if batch.manufacturer}}{{batch.manufacturer}}{{else}}—{{/if}}</strong><small>received {{receivedText}}</small></div></article>
     </section>
 
@@ -30,20 +30,26 @@
     </section>
     {{/if}}{{/if}}
 
-    <section class="panel inventory-panel"><div class="panel-title"><div><h2>Lot movement history (stock card)</h2><p>Newest first. The running balance is this lot’s quantity after each movement.</p></div></div>
-      <div class="table-wrap"><table class="log-table"><thead><tr><th>DATE / TIME</th><th>ACTION</th><th>QTY</th><th>LOT BALANCE</th><th>STAFF</th><th>REFERENCE / REASON</th></tr></thead><tbody>
+    <section class="panel inventory-panel"><div class="panel-title"><div><h2>Lot movement history (stock card)</h2><p>Newest first. The running balance is this lot’s quantity after each movement.{{#if isAdmin}} To correct a mistake, use <b>Void</b> on that entry: the stock is reversed and a <span class="badge badge-red">VOID</span> entry is added; the original stays and is marked VOIDED.{{/if}}</p></div></div>
+      <div class="table-wrap"><table class="log-table"><thead><tr><th>DATE / TIME</th><th>ACTION</th><th>QTY</th><th>LOT BALANCE</th><th>STAFF</th><th>REFERENCE / REASON</th>{{#if isAdmin}}<th><span class="sr-only">Void</span></th>{{/if}}</tr></thead><tbody>
       {{#each logs}}<tr class="{{#if this.isVoid}}row-void{{/if}} {{#if this.isVoided}}row-voided{{/if}}">
         <td><small>{{this.time}}</small></td>
         <td><span class="badge {{this.badge}}">{{this.label}}</span>{{#if this.isVoided}} <span class="badge badge-outline-red">VOIDED</span>{{/if}}</td>
-        <td class="{{this.qtyClass}}"><strong>{{this.amountText}}</strong></td>
+        <td class="{{this.qtyClass}}"><strong>{{this.amountText}}</strong>{{#if this.entryText}}<br><small class="muted">entered as {{this.entryText}}</small>{{/if}}</td>
         <td>{{this.running}}</td>
         <td>{{this.user}}</td>
-        <td class="ref-cell">{{#if this.reference}}<small class="muted">{{this.reference}}</small>{{/if}}{{#if this.isVoid}}<small class="void-of">↩ reverses log #{{this.voidOfId}}</small>{{/if}}{{#if this.reason}}<small class="reason">“{{this.reason}}”</small>{{/if}}</td>
-      </tr>{{else}}<tr><td colspan="6" class="empty">No movements recorded for this lot.</td></tr>{{/each}}
+        <td class="ref-cell">{{#if this.reference}}<small class="muted">{{this.reference}}</small>{{/if}}{{#if this.supplierText}}<small class="supplier-of">from {{this.supplierText}}</small>{{/if}}{{#if this.isVoid}}<small class="void-of">↩ reverses log #{{this.voidOfId}}</small>{{/if}}{{#if this.reason}}<small class="reason">“{{this.reason}}”</small>{{/if}}</td>
+        {{#if ../isAdmin}}<td>{{#if this.fromPos}}<small class="muted">POS sale – void from POS</small>{{/if}}{{#if this.canVoid}}<button class="void-btn" data-action="void" data-id="{{this.id}}" data-desc="{{this.label}}: {{this.amountText}} × {{this.product}} (lot {{this.batchNumber}}, {{this.reference}})" onclick="openVoid(this)">Void</button>{{/if}}</td>{{/if}}
+      </tr>{{else}}<tr><td colspan="7" class="empty">No movements recorded for this lot.</td></tr>{{/each}}
       </tbody></table></div>
     </section>
   </main>
 </div>
+{{#if isAdmin}}<div id="voidModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="voidTitle"><form id="voidForm" method="POST"><button type="button" class="modal-close" aria-label="Close dialog" onclick="closeModal('voidModal')">×</button><h2 id="voidTitle">Void transaction</h2>
+  <p class="hint" id="voidDesc"></p>
+  <p class="hint">Stock is restored to the original lot and a red <span class="badge badge-red">VOID</span> entry is added. The original entry is kept and marked VOIDED. All lines with the same reference are voided together.</p>
+  <label>Reason for void (required)<textarea name="reason" minlength="5" required placeholder="e.g. Wrong quantity encoded"></textarea></label>
+  <button class="primary-btn danger-btn" type="submit">Confirm void</button></form></div>{{/if}}
 <script src="/js/pharma.js"></script>
 {{> keyboard}}
 {{> footer }}

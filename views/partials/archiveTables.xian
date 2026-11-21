@@ -1,0 +1,20 @@
+{{#with archive}}
+    <section class="panel inventory-panel" aria-labelledby="archivedProductsHeading"><div class="panel-title"><div><h2 id="archivedProductsHeading">Archived products ({{productCount}})</h2><p>Hidden from inventory. Their lots and stock logs are kept.</p></div></div>
+      <div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>QTY AT ARCHIVE</th><th>ARCHIVED</th><th>BY</th><th>REASON</th><th><span class="sr-only">Restore</span></th></tr></thead><tbody>
+      {{#each products}}<tr><td><b>{{this.name}}</b></td><td><span class="category">{{this.category}}</span></td><td>{{this.quantity}}</td><td><small>{{this.archivedAt}}</small></td><td>{{this.archivedBy}}</td><td><small class="reason">“{{this.deleteReason}}”</small></td>
+        <td><form method="POST" action="/products/{{this.id}}/restore"><button class="small-btn">↺ Restore</button></form></td></tr>{{else}}<tr><td colspan="7" class="empty">No archived products.</td></tr>{{/each}}
+      </tbody></table></div>
+    </section>
+    <section class="panel inventory-panel archive-staff" aria-labelledby="archivedStaffHeading"><div class="panel-title"><div><h2 id="archivedStaffHeading">Deactivated staff ({{staffCount}})</h2><p>These accounts cannot log in. Their names stay on every log entry they created.</p></div></div>
+      <div class="table-wrap"><table><thead><tr><th>NAME</th><th>EMAIL</th><th>ROLE</th><th>DEACTIVATED</th><th>BY</th><th><span class="sr-only">Reactivate</span></th></tr></thead><tbody>
+      {{#each staff}}<tr><td><b>{{this.name}}</b></td><td>{{this.email}}</td><td><span class="role">{{this.role}}</span></td><td><small>{{this.archivedAt}}</small></td><td>{{this.archivedBy}}</td>
+        <td><form method="POST" action="/staff/{{this.id}}/restore"><button class="small-btn">↺ Reactivate</button></form></td></tr>{{else}}<tr><td colspan="6" class="empty">No deactivated staff.</td></tr>{{/each}}
+      </tbody></table></div>
+    </section>
+    <section class="panel inventory-panel archive-staff" aria-labelledby="archivedSuppliersHeading"><div class="panel-title"><div><h2 id="archivedSuppliersHeading">Archived suppliers ({{supplierCount}})</h2><p>Not offered when receiving stock. Past deliveries still show them.</p></div></div>
+      <div class="table-wrap"><table><thead><tr><th>SUPPLIER</th><th>CONTACT</th><th>PHONE</th><th>ARCHIVED</th><th><span class="sr-only">Restore</span></th></tr></thead><tbody>
+      {{#each suppliers}}<tr><td><b>{{this.name}}</b></td><td>{{this.contactPerson}}</td><td>{{this.phone}}</td><td><small>{{this.archivedAt}}</small></td>
+        <td><form method="POST" action="/suppliers/{{this.id}}/restore"><button class="small-btn">↺ Restore</button></form></td></tr>{{else}}<tr><td colspan="5" class="empty">No archived suppliers.</td></tr>{{/each}}
+      </tbody></table></div>
+    </section>
+{{/with}}

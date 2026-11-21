@@ -24,7 +24,16 @@
     SOFTWARE.
     */
 import { DataTypes } from "sequelize";
+import bcrypt from "bcrypt";
 import { sequelize } from "./db.js";
+
+// Passwords are stored only as bcrypt hashes. The hooks below hash any plain password on create/update,
+// so every code path (register, Add staff, seed, scripts) is covered; migrate.js converts old plain rows.
+export const isHashed = value => /^\$2[aby]\$\d{2}\$/.test(String(value || ""));
+const hashIfPlain = async user => {
+  if (user.changed("password") && !isHashed(user.password)) user.password = await bcrypt.hash(String(user.password), 10);
+};
+export const MIN_PASSWORD = 8;
 
 export const User = sequelize.define("User", {
   name: { type: DataTypes.STRING, allowNull: false },
@@ -36,8 +45,20 @@ export const User = sequelize.define("User", {
   // Staff accounts are deactivated (deletedAt = NOW()), never removed, so their log history stays attributable.
   paranoid: true,
   hooks: {
+    beforeCreate: hashIfPlain,
+    beforeUpdate: hashIfPlain,
+    beforeBulkCreate: async users => { for (const u of users) await hashIfPlain(u); },
     beforeDestroy: (instance, options) => { if (options.force) throw new Error("Permanent deletion of staff accounts is disabled."); },
     beforeBulkDestroy: options => { if (options.force) throw new Error("Permanent deletion of staff accounts is disabled."); }
   }
 });
 export { sequelize }; 
+
+// Constant-time check against the stored bcrypt hash. Legacy plain-text rows (before migrate.js ran)
+// are accepted once and immediately re-saved as a hash.
+User.prototype.checkPassword = async function (plain) {
+  if (isHashed(this.password)) return bcrypt.compare(String(plain || ""), this.password);
+  const ok = String(plain || "") === String(this.password || "");
+  if (ok) await this.update({ password: String(plain) });
+  return ok;
+};

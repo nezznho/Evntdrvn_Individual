@@ -1,0 +1,100 @@
+{{> head}}
+<body>
+<div class="app-shell">
+  {{> sidebar}}
+  <main id="main-content" tabindex="-1" class="np-main">
+    <nav class="np-crumbs" aria-label="Breadcrumb"><a href="/dashboard#inventory">Inventory</a><span aria-hidden="true">/</span><span aria-current="page">Add product</span></nav>
+    <header class="np-header"><div><h1>Add a new product</h1><p>Register a medicine once, then receive deliveries into it. Stock is always counted in its base unit, and boxes are converted for you.</p></div></header>
+    {{> flash}}
+
+    <form id="newProductForm" class="np-layout" method="POST" action="/products" novalidate>
+      <div class="np-form">
+
+        <section class="np-card" aria-labelledby="np-s1">
+          <div class="np-card-head"><span class="np-step" aria-hidden="true">1</span><div><h2 id="np-s1">Product details</h2><p>What the medicine is called and how it is found at the counter.</p></div></div>
+          <div class="np-grid">
+            <div class="np-field np-span-2"><label for="np-name">Product name <span class="np-req" aria-hidden="true">*</span></label>
+              <input id="np-name" name="name" required maxlength="255" autofocus placeholder="e.g. Bioflu 10mg/2mg/500mg" data-sum="name"></div>
+            <div class="np-field"><label for="np-category">Category <span class="np-req" aria-hidden="true">*</span></label>
+              <select id="np-category" name="category" required data-sum="category">{{#each categories}}<option>{{this}}</option>{{/each}}</select>
+              <small class="np-help">Missing one? <a href="/dashboard#categories">Manage categories</a></small></div>
+            <div class="np-field"><label for="np-barcode">Barcode</label>
+              <div class="np-input-icon"><span aria-hidden="true">▥</span><input id="np-barcode" name="barcode" maxlength="64" autocomplete="off" data-scan-accept value="{{barcode}}" placeholder="Scan or type (optional)"></div>
+              <small class="np-help">Must match the medicine code on the POS.</small></div>
+            <div class="np-field"><label for="np-price">Price per piece <span class="np-req" aria-hidden="true">*</span></label>
+              <div class="np-affix"><span class="np-prefix">₱</span><input id="np-price" name="price" type="number" step="0.01" min="0" required placeholder="0.00" data-sum="price"><span class="np-suffix" data-unit-suffix>/ pc</span></div></div>
+            <div class="np-field"><label>Price per box</label>
+              <div class="np-readonly" data-box-price>Set pieces per box to see it</div></div>
+          </div>
+        </section>
+
+        <section class="np-card" aria-labelledby="np-s2">
+          <div class="np-card-head"><span class="np-step" aria-hidden="true">2</span><div><h2 id="np-s2">Pieces and boxes</h2><p>Customers buy per piece or per box. Choose what one piece is, and how many come in a box.</p></div></div>
+          <fieldset class="np-field np-chips-field"><legend>One piece is a…</legend>
+            <div class="np-chips">{{#each units}}<label class="np-chip"><input type="radio" name="unit" value="{{value}}" {{#if selected}}checked{{/if}}><span>{{label}}</span></label>{{/each}}</div>
+          </fieldset>
+          <div class="np-grid">
+            <div class="np-field"><label for="np-ppb">Pieces per box</label>
+              <div class="np-affix"><input id="np-ppb" name="piecesPerBox" type="number" min="1" max="100000" step="1" placeholder="e.g. 100" data-sum="ppb"><span class="np-suffix" data-unit-suffix-plural>pcs</span></div>
+              <small class="np-help">Leave blank if it is never sold by the box.</small></div>
+            <div class="np-field"><label for="np-reorder">Low-stock alert at</label>
+              <div class="np-affix"><input id="np-reorder" name="reorderLevel" type="number" min="0" step="1" value="25" required data-sum="reorder"><span class="np-suffix" data-unit-suffix-plural>pcs</span></div>
+              <small class="np-help">The product is flagged as low when stock reaches this many pieces.</small></div>
+          </div>
+        </section>
+
+        <section class="np-card" aria-labelledby="np-s3">
+          <div class="np-card-head"><span class="np-step" aria-hidden="true">3</span><div><h2 id="np-s3">Opening stock</h2><p>Already have this medicine on the shelf? Record its first lot now, or add it later with Receive stock.</p></div>
+            <label class="np-switch"><input type="checkbox" data-opening-toggle><span class="np-switch-track" aria-hidden="true"></span><span>Add opening stock</span></label></div>
+          <fieldset class="np-opening" data-opening disabled>
+            <legend class="sr-only">Opening stock</legend>
+            <div class="np-grid">
+              <div class="np-field"><label for="np-lot">Batch / Lot no. <span class="np-req" aria-hidden="true">*</span></label>
+                <input id="np-lot" name="batchNumber" placeholder="As printed on the box, e.g. BFL2511A" data-sum="lot"></div>
+              <div class="np-field"><label for="np-exp">Expiry date <span class="np-req" aria-hidden="true">*</span></label>
+                <input id="np-exp" name="expiryDate" type="date" min="{{minExpiry}}" data-sum="expiry"></div>
+              <div class="np-field"><label for="np-qty">Quantity <span class="np-req" aria-hidden="true">*</span></label>
+                <div class="np-qty"><input id="np-qty" name="quantity" type="number" min="1" placeholder="0" data-sum="qty">
+                  <div class="np-seg" role="radiogroup" aria-label="Quantity entered in">
+                    <label><input type="radio" name="openingUnit" value="piece" checked><span data-unit-suffix-plural>pcs</span></label>
+                    <label data-box-option><input type="radio" name="openingUnit" value="box"><span>boxes</span></label>
+                  </div></div>
+                <small class="np-help" data-qty-help></small></div>
+              <div class="np-field"><label for="np-manufacturer">Manufacturer</label>
+                <input id="np-manufacturer" name="manufacturer" placeholder="e.g. Unilab"></div>
+              <div class="np-field"><label for="np-supplier">Supplier</label>
+                <select id="np-supplier" name="supplierId"><option value="">— Not specified —</option>{{#each suppliers}}<option value="{{id}}">{{name}}</option>{{/each}}</select>
+                {{#unless suppliers.length}}<small class="np-help">No suppliers yet. <a href="/dashboard#suppliers">Add one</a></small>{{/unless}}</div>
+              <div class="np-field"><label for="np-dr">Delivery receipt / Invoice no.</label>
+                <input id="np-dr" name="reference" maxlength="40" placeholder="e.g. DR-10234 (auto if blank)"></div>
+            </div>
+          </fieldset>
+        </section>
+      </div>
+
+      <aside class="np-aside" aria-label="Summary">
+        <div class="np-summary">
+          <div class="np-summary-top"><div class="np-avatar" aria-hidden="true">✚</div><div><b data-out="name">New product</b><span class="np-pill" data-out="category"></span></div></div>
+          <dl class="np-facts">
+            <div><dt>Price</dt><dd><span data-out="price">₱0.00</span> <small data-out="perUnit">/ pc</small></dd></div>
+            <div><dt>Box</dt><dd data-out="box">Not sold by box</dd></div>
+            <div><dt>Low-stock alert</dt><dd data-out="reorder">25 pcs</dd></div>
+            <div><dt>Opening stock</dt><dd data-out="opening">None, add later</dd></div>
+          </dl>
+          <ul class="np-checks" aria-label="Checklist">
+            <li data-check="name">Product name</li>
+            <li data-check="price">Price per piece</li>
+            <li data-check="opening">Lot, expiry and quantity (if adding stock)</li>
+          </ul>
+        </div>
+        <p class="np-note">Quantity and expiry can only change through logged movements (Receive stock, Stock out, expire or recall), so every change stays in the audit trail.</p>
+      </aside>
+
+      <div class="np-actions"><a class="np-btn-ghost" href="/dashboard#inventory">Cancel</a><button class="primary-btn np-save" type="submit">Save product</button></div>
+    </form>
+  </main>
+</div>
+<script src="/js/pharma.js"></script>
+<script src="/js/product-new.js"></script>
+{{> keyboard}}
+{{> footer }}

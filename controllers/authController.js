@@ -24,7 +24,7 @@
     SOFTWARE.
     */
     
-import { User } from "../models/userModel.js";
+import { User, MIN_PASSWORD } from "../models/userModel.js";
 
 export const loginPage = (req, res) => res.render("login", { title: "Login", layout: false });
 export const registerPage = (req, res) => res.render("register", { title: "Register", layout: false });
@@ -34,8 +34,8 @@ export const dashboardPage = (req, res) => res.redirect("/dashboard");
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;
   // paranoid: false so a deactivated account gets a clear message instead of "invalid password".
-  const user = await User.findOne({ where: { email }, paranoid: false });
-  if (!user || user.password !== password) return res.render("login", { title: "Login", layout: false, error: "Invalid email or password." });
+  const user = await User.findOne({ where: { email: String(email || "").trim() }, paranoid: false });
+  if (!user || !(await user.checkPassword(password))) return res.render("login", { title: "Login", layout: false, error: "Invalid email or password." });
   if (user.deletedAt) return res.render("login", { title: "Login", layout: false, error: "This account has been deactivated. Please contact the administrator." });
   req.session.user = { id: user.id, name: user.name, email: user.email, role: user.role };
   res.redirect("/dashboard");
@@ -43,6 +43,9 @@ export const loginUser = async (req, res) => {
 
 export const registerUser = async (req, res) => {
   const { name, email, password } = req.body;
+  if (String(password || "").length < MIN_PASSWORD) {
+    return res.render("register", { title: "Register", layout: false, error: `Password must be at least ${MIN_PASSWORD} characters.` });
+  }
   const existing = await User.findOne({ where: { email }, paranoid: false }); // includes deactivated accounts
   if (existing) return res.render("register", { title: "Register", layout: false, error: "That email is already registered." });
   const user = await User.create({ name, email, password, role: "staff" });

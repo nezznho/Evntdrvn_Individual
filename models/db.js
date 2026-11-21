@@ -1,5 +1,4 @@
-
-      /*
+/*
     MIT License
     
     Copyright (c) 2025 Christian I. Cabrera || XianFire Framework
@@ -24,11 +23,17 @@
     SOFTWARE.
     */
     
+import "dotenv/config";
 import { Sequelize } from "sequelize";
 
-// DB_NAME can be overridden (e.g. DB_NAME=Pharmacare_test) to test migrations without touching real data.
-export const sequelize = new Sequelize(process.env.DB_NAME || "Pharmacare", "root", "", {
-  host: "localhost",
-  dialect: "mysql",
-  logging: process.env.DB_LOG ? console.log : false
-});
+export const sequelize = new Sequelize(
+  process.env.DB_NAME || "Pharmacare",
+  process.env.DB_USER || "root",
+  process.env.DB_PASSWORD || "",
+  {
+    host: process.env.DB_HOST || "localhost",
+    port: Number(process.env.DB_PORT) || 3306,
+    dialect: "mysql",
+    logging: process.env.DB_LOG ? console.log : false
+  }
+);

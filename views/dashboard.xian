@@ -3,123 +3,202 @@
 <div class="app-shell">
   {{> sidebar}}
   <main id="main-content" tabindex="-1">
-    <header><div><h1>Dashboard</h1><p>Here’s what’s happening with your inventory today.</p></div>{{#if isAdmin}}<button class="primary-btn" data-action="add-product" aria-keyshortcuts="n" onclick="openAddProduct()">＋ Add Product</button>{{/if}}</header>
+    <header><div><h1 data-view-heading>Dashboard</h1><p>Here’s what’s happening with your inventory today.</p></div>{{#if isAdmin}}<a class="primary-btn" data-action="add-product" aria-keyshortcuts="n" href="/products/new">＋ Add Product</a>{{/if}}</header>
     {{> flash}}
-    <section id="overview" class="stats-grid" aria-label="Overview">
-      <article class="stat"><div class="stat-icon blue" aria-hidden="true">▦</div><div><span>Total inventory value</span><strong>₱{{value}}</strong><small>Across {{total}} products · {{lotCount}} active lots</small></div></article>
-      <article class="stat"><div class="stat-icon orange" aria-hidden="true">!</div><div><span>Low stock items</span><strong>{{lowCount}}</strong><small>25 units or fewer</small></div></article>
-      <article class="stat"><div class="stat-icon pink" aria-hidden="true">◷</div><div><span>Lots expiring / expired</span><strong>{{expiringCount}}</strong><small>Within 45 days</small></div></article>
-      <article class="stat"><div class="stat-icon green" aria-hidden="true">↗</div><div><span>Stock activity</span><strong>{{logs.length}}</strong><small>{{#if isAdmin}}Recent movements · {{voidCount}} void(s){{else}}See batch history{{/if}}</small></div></article>
+    <!-- One view is visible at a time; public/js/views.js picks it from the URL hash (#overview, #inventory, ...). -->
+    <section data-view="overview" data-view-title="Overview" aria-labelledby="overviewHeading" hidden>
+      <h2 id="overviewHeading" class="sr-only">Overview</h2>
+
+      <!-- Inventory analytics (rendered by public/js/analytics.js from GET /api/dashboard/stats). Sales are reported by the POS. -->
+      <div id="analytics" class="an-toolbar flex flex-wrap items-end gap-3 mb-4">
+        <div role="group" aria-label="Period" class="seg">
+          <button type="button" class="seg-btn" data-range="daily" aria-pressed="true">Daily</button><button type="button" class="seg-btn" data-range="monthly" aria-pressed="false">Monthly</button><button type="button" class="seg-btn" data-range="yearly" aria-pressed="false">Yearly</button>
+        </div>
+        <form id="anRangeForm" class="an-range flex flex-wrap items-end gap-2" aria-label="Custom date range">
+          <label>From<input type="date" name="from"></label>
+          <label>To<input type="date" name="to"></label>
+          <button class="small-btn" type="submit">Apply</button>
+          <button class="small-btn" type="button" data-range-clear>Clear</button>
+        </form>
+        <span id="anStatus" class="an-status ml-auto" role="status" aria-live="polite"></span>
+      </div>
+
+      <div class="stats-grid" aria-label="Inventory">
+        <article class="stat"><div class="stat-icon blue" aria-hidden="true">▦</div><div><span>Total inventory value</span><strong>{{value}}</strong><small>Across {{total}} products · {{lotCount}} active lots</small></div></article>
+        <article class="stat"><div class="stat-icon orange" aria-hidden="true">!</div><div><span>Low stock items</span><strong>{{lowCount}}</strong><small>At or below each product’s alert level</small></div></article>
+        <article class="stat"><div class="stat-icon pink" aria-hidden="true">◷</div><div><span>Lots expiring / expired</span><strong>{{expiringCount}}</strong><small>Within 45 days</small></div></article>
+        <article class="stat"><div class="stat-icon green" aria-hidden="true">↗</div><div><span>Stock activity</span><strong>{{logs.length}}</strong><small>{{#if isAdmin}}Recent movements · {{voidCount}} void(s){{else}}See batch history{{/if}}</small></div></article>
+      </div>
+
+      <div class="an-grid an-grid-3">
+        <div class="panel an-span-2"><div class="panel-title"><h2>Stock in / out</h2><small class="muted">Pieces moved per period, from the stock log · <span data-range-label></span></small></div>
+          <div class="chart-box"><canvas id="movementChart" role="img" aria-label="Stock in and out bar chart"></canvas><p class="empty chart-empty" data-empty="movement" hidden>No stock movements in this period.</p></div></div>
+        <div class="panel"><div class="panel-title"><h2>Inventory value by category</h2></div>
+          <div class="chart-box"><canvas id="categoryChart" role="img" aria-label="Inventory value by category doughnut chart"></canvas><p class="empty chart-empty" data-empty="category" hidden>No stock on hand.</p></div></div>
+      </div>
+
+      <div class="an-grid">
+        <div class="panel"><div class="panel-title"><div><h2>Days of stock remaining</h2><p>On hand ÷ average daily dispensing over the last 30 days</p></div></div>
+          <div class="table-wrap an-scroll"><table><thead><tr><th>PRODUCT</th><th class="num">ON HAND</th><th class="num">AVG / DAY</th><th class="num">DAYS LEFT</th></tr></thead><tbody id="anDaysOfStock"></tbody></table></div></div>
+        <div class="panel"><div class="panel-title"><div><h2>Slow movers</h2><p>In stock, nothing dispensed in the last 60 days</p></div></div>
+          <div class="table-wrap an-scroll"><table><thead><tr><th>PRODUCT</th><th class="num">ON HAND</th><th class="num">VALUE</th><th>LAST DISPENSED</th></tr></thead><tbody id="anSlowMovers"></tbody></table></div></div>
+        <div class="panel"><div class="panel-title"><div><h2>Expiry risk</h2><p>Active lots expiring within the window (incl. expired, not yet written off) × unit price</p></div></div>
+          <div class="table-wrap"><table><thead><tr><th>WINDOW</th><th class="num">LOTS</th><th class="num">UNITS</th><th class="num">VALUE AT RISK</th></tr></thead><tbody id="anExpiryRisk"></tbody></table></div></div>
+      </div>
+
+      <div class="alert-grid">
+        <div class="panel"><div class="panel-title"><h2><span class="dot orange-dot"></span>Low Stock Alert</h2><a href="#inventory">View inventory →</a></div>
+          {{#each low}}<div class="alert-row"><div><b>{{this.name}}</b><small>{{this.category}}</small></div><span>{{this.quantity}} left</span></div>{{else}}<p class="empty">All products are above the reorder level.</p>{{/each}}</div>
+        <div class="panel"><div class="panel-title"><h2><span class="dot pink-dot"></span>Expiry Alerts (by lot)</h2><a href="#lots">View lots →</a></div>
+          {{#each expiring}}<div class="alert-row"><div><b>{{this.productName}} <code class="lot">{{this.batchNumber}}</code></b><small>{{this.quantity}} units · expires {{this.expiryDate}}</small></div>{{#if this.isExpired}}<span class="badge badge-red">Expired – pull out</span>{{else}}<span class="expiry-badge">{{this.days}} days</span>{{/if}}</div>{{else}}<p class="empty">No lots expiring within 45 days.</p>{{/each}}</div>
+      </div>
     </section>
 
-    <section class="alert-grid">
-      <div class="panel"><div class="panel-title"><h2><span class="dot orange-dot"></span>Low Stock Alert</h2><a href="#inventory">View inventory →</a></div>
-        {{#each low}}<div class="alert-row"><div><b>{{this.name}}</b><small>{{this.category}}</small></div><span>{{this.quantity}} left</span></div>{{else}}<p class="empty">All products are above the reorder level.</p>{{/each}}</div>
-      <div class="panel"><div class="panel-title"><h2><span class="dot pink-dot"></span>Expiry Alerts (by lot)</h2><a href="#batches">View lots →</a></div>
-        {{#each expiring}}<div class="alert-row"><div><b>{{this.productName}} <code class="lot">{{this.batchNumber}}</code></b><small>{{this.quantity}} units · expires {{this.expiryDate}}</small></div>{{#if this.isExpired}}<span class="badge badge-red">Expired – pull out</span>{{else}}<span class="expiry-badge">{{this.days}} days</span>{{/if}}</div>{{else}}<p class="empty">No lots expiring within 45 days.</p>{{/each}}</div>
-    </section>
-
-    <section id="inventory" class="panel inventory-panel" aria-labelledby="inventoryHeading"><div class="panel-title"><div><h2 id="inventoryHeading">Inventory</h2><p>Quantities are the sum of active lots. They change only through logged stock movements.</p></div></div>
-      <div class="toolbar"><input id="search" type="search" data-search-input="products" aria-label="Search products" aria-keyshortcuts="/" placeholder="Search products…" oninput="filterInventory()"><select id="categoryFilter" data-filter="category" aria-label="Filter by category" aria-keyshortcuts="f" onchange="filterInventory()"><option value="">All categories</option><option>Antibiotics</option><option>Pain Relief</option><option>Antihistamines</option><option>Diabetes</option><option>Digestive Health</option><option>Supplements</option><option>Respiratory</option></select></div>
+    <section data-view="inventory" data-view-title="Inventory" class="panel inventory-panel" aria-labelledby="inventoryHeading" hidden><div class="panel-title"><div><h2 id="inventoryHeading">Inventory</h2><p>Quantities are the sum of active lots. They change only through logged stock movements.</p></div></div>
+      <div class="toolbar"><input id="search" type="search" data-search-input="products" aria-label="Search products" aria-keyshortcuts="/" placeholder="Search products…" oninput="filterInventory()"><select id="categoryFilter" data-filter="category" aria-label="Filter by category" aria-keyshortcuts="f" onchange="filterInventory()"><option value="">All categories</option>{{#each categories}}<option>{{this}}</option>{{/each}}</select></div>
       <div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>QUANTITY</th><th>LOTS</th><th>NEAREST EXPIRY</th><th>UNIT PRICE</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody id="productRows" data-table="products">
-      {{#each inventory}}<tr data-row="product" data-id="{{this.id}}" data-name="{{this.name}}" data-category="{{this.category}}" data-price="{{this.price}}" data-barcode="{{this.barcode}}" data-sellable="{{this.sellable}}" data-lots="{{this.dispenseOptions}}">
-        <td><div class="product"><span>{{this.name}}</span></div></td>
+      {{#each inventory}}<tr data-row="product" data-id="{{this.id}}" data-name="{{this.name}}" data-category="{{this.category}}" data-price="{{this.price}}" data-barcode="{{this.barcode}}" data-unit="{{this.unit}}" data-ppb="{{this.piecesPerBox}}" data-reorder="{{this.reorderLevel}}" data-qty="{{this.quantity}}" data-sellable="{{this.sellable}}" data-lots="{{this.dispenseOptions}}">
+        <td><div class="product"><span>{{this.name}}</span>{{#if this.packText}}<small class="muted">{{this.packText}}</small>{{/if}}</div></td>
         <td><span class="category">{{this.category}}</span></td>
-        <td><div class="quantity {{#if this.isLow}}low{{/if}}"><strong>{{this.quantity}}</strong><small>units</small></div></td>
+        <td><div class="quantity {{#if this.isLow}}low{{/if}}"><strong>{{this.qtyText}}</strong><small>{{this.unitText}}{{#if this.boxText}} · {{this.boxText}}{{/if}}</small>{{#if this.isLow}}<small class="low-note">Low · alert at {{this.reorderText}}</small>{{/if}}</div></td>
         <td>{{this.lotCount}}</td>
         <td>{{#if this.expiry}}{{this.expiry}}{{else}}<small class="muted">No stock</small>{{/if}}</td>
-        <td>₱{{this.price}}</td>
+        <td>{{this.priceText}}<small class="muted"> / pc</small>{{#if this.boxPriceText}}<br><small class="muted">{{this.boxPriceText}} / box</small>{{/if}}</td>
         <td><button class="row-menu" data-row-menu aria-label="Actions for {{this.name}}" aria-haspopup="menu" aria-expanded="false" onclick="toggleMenu(this)">⋮</button><div class="row-actions" role="menu" aria-label="Actions for {{this.name}}">
           <button role="menuitem" data-action="stock-in" onclick="openStockIn(this)">Receive stock (Stock In)</button>
-          <button role="menuitem" data-action="dispense" onclick="openDispense(this)">Dispense</button>
+          <button role="menuitem" data-action="dispense" onclick="openDispense(this)">Stock out (damaged, transfer…)</button>
           {{#if ../isAdmin}}<button role="menuitem" data-action="edit-product" onclick="openProductEdit(this)">Edit details</button><button role="menuitem" class="danger" data-action="archive-product" onclick="openArchive(this)">Delete (archive)</button>{{/if}}
         </div></td></tr>{{else}}<tr><td colspan="7" class="empty">No active products.</td></tr>{{/each}}
       </tbody></table></div>
     </section>
 
-    <section id="batches" class="panel inventory-panel" aria-labelledby="batchesHeading"><div class="panel-title"><div><h2 id="batchesHeading">Batch / Lot Tracking</h2><p>Every unit belongs to a manufacturer lot. Open a lot for its full movement history, or to expire or recall it.</p></div></div>
+    <section data-view="lots" data-view-title="Batches / Lots" class="panel inventory-panel" aria-labelledby="batchesHeading" hidden><div class="panel-title"><div><h2 id="batchesHeading">Batch / Lot Tracking</h2><p>Every unit belongs to a manufacturer lot. Open a lot for its full movement history, or to expire or recall it.</p></div></div>
       <div class="toolbar"><input id="lotSearch" type="search" data-search-input="lots" aria-label="Search lots" aria-keyshortcuts="/" placeholder="Search lot number or product…" oninput="filterLots()"></div>
       <div class="table-wrap"><table><thead><tr><th>LOT / BATCH NO.</th><th>PRODUCT</th><th>MANUFACTURER</th><th>ON HAND</th><th>EXPIRY</th><th>STATUS</th><th><span class="sr-only">History</span></th></tr></thead><tbody id="lotRows" data-table="lots">
       {{#each batches}}<tr data-row="lot" data-id="{{this.id}}" data-product-id="{{this.productId}}" data-search="{{this.batchNumber}} {{this.productName}}">
         <td><code class="lot">{{this.batchNumber}}</code></td><td>{{this.productName}}</td><td>{{#if this.manufacturer}}{{this.manufacturer}}{{else}}<small class="muted">—</small>{{/if}}</td>
-        <td><strong>{{this.quantity}}</strong></td><td>{{this.expiryDate}}</td>
+        <td><strong>{{this.qtyText}}</strong>{{#if this.boxText}}<br><small class="muted">{{this.boxText}}</small>{{/if}}</td><td>{{this.expiryDate}}</td>
         <td>{{#if this.isExpired}}<span class="badge badge-red">Expired</span>{{else if this.isExpiringSoon}}<span class="badge badge-orange">{{this.days}} days left</span>{{else}}<span class="badge badge-green">Active</span>{{/if}}</td>
         <td><a class="link" data-row-open href="/batches/{{this.id}}">View history<span class="sr-only"> of lot {{this.batchNumber}}</span> →</a></td></tr>{{else}}<tr><td colspan="7" class="empty">No lots with stock on hand.</td></tr>{{/each}}
       </tbody></table></div>
     </section>
 
     {{#if isAdmin}}
-    <section id="logs" class="panel inventory-panel" aria-labelledby="logsHeading"><div class="panel-title"><div><h2 id="logsHeading">Stock Activity Log</h2><p>Append-only audit trail. Entries cannot be edited or deleted. Mistakes are reversed with a <span class="badge badge-red">VOID</span> entry.</p></div>
-      <div class="legend"><span class="badge badge-green">Stock in</span><span class="badge badge-purple">Dispensed</span><span class="badge badge-orange">Expired</span><span class="badge badge-amber">Recalled</span><span class="badge badge-red">VOID</span></div></div>
-      <div class="table-wrap"><table class="log-table"><thead><tr><th>DATE / TIME</th><th>ACTION</th><th>PRODUCT</th><th>LOT</th><th>QTY</th><th>BALANCE</th><th>STAFF</th><th>REFERENCE / REASON</th><th><span class="sr-only">Void</span></th></tr></thead><tbody>
+    <section data-view="logs" data-view-title="Stock logs" class="panel inventory-panel" aria-labelledby="logsHeading" hidden><div class="panel-title"><div><h2 id="logsHeading">Stock Activity Log</h2><p>Read-only audit trail. Entries cannot be edited or deleted. A mistake is reversed from the lot’s page (Batches / Lots → View history) and shows here as a <span class="badge badge-red">VOID</span> entry.</p></div>
+      <div class="legend"><span class="badge badge-green">Stock in</span><span class="badge badge-purple">Dispensed (POS sale)</span><span class="badge badge-slate">Stock out</span><span class="badge badge-orange">Expired</span><span class="badge badge-amber">Recalled</span><span class="badge badge-red">VOID</span></div></div>
+      <div class="table-wrap"><table class="log-table"><thead><tr><th>DATE / TIME</th><th>ACTION</th><th>PRODUCT</th><th>LOT</th><th>QTY</th><th>STOCK BEFORE → AFTER</th><th>STAFF</th><th>REFERENCE / REASON</th></tr></thead><tbody>
       {{#each logs}}<tr class="{{#if this.isVoid}}row-void{{/if}} {{#if this.isVoided}}row-voided{{/if}}">
         <td><small>{{this.time}}</small></td>
         <td><span class="badge {{this.badge}}">{{this.label}}</span>{{#if this.isVoided}} <span class="badge badge-outline-red" title="Reversed by log #{{this.voidLogId}}">VOIDED</span>{{/if}}</td>
         <td>{{this.product}}</td>
         <td>{{#if this.batchNumber}}<a href="/batches/{{this.batchId}}"><code class="lot">{{this.batchNumber}}</code></a>{{else}}<small class="muted">—</small>{{/if}}</td>
-        <td class="{{this.qtyClass}}"><strong>{{this.amountText}}</strong></td>
-        <td>{{this.balanceText}}</td>
+        <td class="{{this.qtyClass}}"><strong>{{this.amountText}}</strong>{{#if this.amount}} <small>{{this.unitText}}</small>{{/if}}{{#if this.entryText}}<br><small class="muted">entered as {{this.entryText}}</small>{{else if this.boxText}}<br><small class="muted">{{this.boxText}}</small>{{/if}}</td>
+        <td>{{#if this.beforeText}}<span class="muted">{{this.beforeText}}</span> → <strong>{{this.afterText}}</strong>{{#if this.growthText}}<br><small class="qty-in">{{this.growthText}}</small>{{/if}}{{else}}{{this.afterText}}{{/if}}</td>
         <td>{{this.user}}</td>
-        <td class="ref-cell">{{#if this.reference}}<small class="muted">{{this.reference}}</small>{{/if}}{{#if this.isVoid}}<small class="void-of">↩ reverses log #{{this.voidOfId}}</small>{{/if}}{{#if this.reason}}<small class="reason">“{{this.reason}}”</small>{{/if}}</td>
-        <td>{{#if this.canVoid}}<button class="void-btn" data-action="void" data-id="{{this.id}}" data-desc="{{this.label}}: {{this.amountText}} × {{this.product}} (lot {{this.batchNumber}}, {{this.reference}})" onclick="openVoid(this)">Void</button>{{/if}}</td>
-      </tr>{{else}}<tr><td colspan="9" class="empty">No stock movements yet.</td></tr>{{/each}}
+        <td class="ref-cell">{{#if this.reference}}<small class="muted">{{this.reference}}</small>{{/if}}{{#if this.supplierText}}<small class="supplier-of">from {{this.supplierText}}</small>{{/if}}{{#if this.isVoid}}<small class="void-of">↩ reverses log #{{this.voidOfId}}</small>{{/if}}{{#if this.reason}}<small class="reason">“{{this.reason}}”</small>{{/if}}</td>
+      </tr>{{else}}<tr><td colspan="8" class="empty">No stock movements yet.</td></tr>{{/each}}
       </tbody></table></div>
     </section>
 
-    <section id="staff" class="panel staff-panel" aria-labelledby="staffHeading"><div class="panel-title"><h2 id="staffHeading">Staff Accounts</h2><button class="small-btn" data-action="add-staff" onclick="openModal('staffModal')">＋ Add staff</button></div>
+    <section data-view="staff" data-view-title="Staff" class="panel staff-panel" aria-labelledby="staffHeading" hidden><div class="panel-title"><h2 id="staffHeading">Staff Accounts</h2><button class="small-btn" data-action="add-staff" onclick="openModal('staffModal')">＋ Add staff</button></div>
       {{#each users}}<div class="person"><div class="avatar small" aria-hidden="true">{{this.name}}</div><div><b>{{this.name}}</b><small>{{this.email}}</small></div><span class="role">{{this.role}}</span>{{#unless this.isSelf}}<form method="POST" action="/staff/{{this.id}}/delete" onsubmit="return confirm('Deactivate {{this.name}}? They will no longer be able to log in, but their history is kept and an admin can restore them.')"><button class="delete-icon" title="Deactivate (soft delete)" aria-label="Deactivate {{this.name}}">×</button></form>{{/unless}}</div>{{/each}}
+    </section>
+
+    <section data-view="categories" data-view-title="Categories" class="panel inventory-panel" aria-labelledby="categoriesHeading" hidden><div class="panel-title"><div><h2 id="categoriesHeading">Categories</h2><p>Used by the product forms and the Inventory filter. Renaming a category renames it on its products. A category in use cannot be deleted.</p></div></div>
+      <form class="inline-form" method="POST" action="/categories"><input name="name" required maxlength="80" placeholder="New category name" aria-label="New category name"><input name="description" maxlength="255" placeholder="Description (optional)" aria-label="Description"><button class="primary-btn" type="submit">＋ Add category</button></form>
+      <div class="table-wrap"><table><thead><tr><th>CATEGORY</th><th>DESCRIPTION</th><th class="num">PRODUCTS</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
+      {{#each categoryRows}}<tr>
+        <td colspan="4" class="edit-row"><form class="inline-form row-form" method="POST" action="/categories/{{this.id}}/rename">
+          <input name="name" value="{{this.name}}" required maxlength="80" aria-label="Category name">
+          <input name="description" value="{{this.description}}" maxlength="255" placeholder="—" aria-label="Description">
+          <span class="count-pill">{{this.productCountText}}</span>
+          <button class="small-btn" type="submit">Save</button>
+          <button class="small-btn danger" type="submit" formaction="/categories/{{this.id}}/delete" {{#if this.productCount}}disabled title="Move its products to another category first"{{/if}} onclick="return confirm('Delete this category?')">Delete</button>
+        </form></td></tr>{{else}}<tr><td colspan="4" class="empty">No categories yet.</td></tr>{{/each}}
+      </tbody></table></div>
+    </section>
+
+    <section data-view="suppliers" data-view-title="Suppliers" class="panel inventory-panel" aria-labelledby="suppliersHeading" hidden><div class="panel-title"><div><h2 id="suppliersHeading">Suppliers</h2><p>Choose the supplier when receiving stock. Every delivery keeps its supplier and delivery receipt number, so each lot can be traced to where it came from.</p></div><button class="small-btn" type="button" onclick="openSupplier()">＋ Add supplier</button></div>
+      <div class="table-wrap"><table><thead><tr><th>SUPPLIER</th><th>CONTACT</th><th>PHONE / EMAIL</th><th>ADDRESS</th><th class="num">DELIVERIES</th><th>LAST DELIVERY</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
+      {{#each supplierRows}}<tr data-supplier="{{this.id}}" data-name="{{this.name}}" data-contact="{{this.contactPerson}}" data-phone="{{this.phone}}" data-email="{{this.email}}" data-address="{{this.address}}">
+        <td><b>{{this.name}}</b></td><td>{{#if this.contactPerson}}{{this.contactPerson}}{{else}}<small class="muted">—</small>{{/if}}</td>
+        <td>{{#if this.phone}}{{this.phone}}{{/if}}{{#if this.email}}<br><small class="muted">{{this.email}}</small>{{/if}}{{#unless this.phone}}{{#unless this.email}}<small class="muted">—</small>{{/unless}}{{/unless}}</td>
+        <td class="wrap">{{#if this.address}}{{this.address}}{{else}}<small class="muted">—</small>{{/if}}</td>
+        <td class="num">{{this.deliveries}}</td><td>{{#if this.lastDeliveryText}}<small>{{this.lastDeliveryText}}</small>{{else}}<small class="muted">None yet</small>{{/if}}</td>
+        <td><button class="small-btn" type="button" onclick="openSupplier(this)">Edit</button> <form class="inline" method="POST" action="/suppliers/{{this.id}}/delete" onsubmit="return confirm('Archive {{this.name}}? Past deliveries keep this supplier.')"><button class="small-btn danger">Archive</button></form></td>
+      </tr>{{else}}<tr><td colspan="7" class="empty">No suppliers yet. Add one to record where deliveries come from.</td></tr>{{/each}}
+      </tbody></table></div>
+    </section>
+
+    <section data-view="archive" data-view-title="Archive" aria-label="Archive" hidden>
+      <p class="hint">Soft-deleted records are kept permanently for legal and audit purposes. Nothing here can be permanently deleted.</p>
+      {{> archiveTables}}
     </section>
     {{/if}}
   </main>
 </div>
+<script src="/js/views.js"></script>
 
-<div id="productModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="productTitle"><form method="POST" action="/products"><button type="button" class="modal-close" aria-label="Close dialog" onclick="closeModal('productModal')">×</button><h2 id="productTitle">Add product</h2>
+<div id="productModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="productTitle"><form method="POST"><button type="button" class="modal-close" aria-label="Close dialog" onclick="closeModal('productModal')">×</button><h2 id="productTitle">Edit product details</h2>
   <div class="form-grid">
     <label>Product name<input name="name" required></label>
-    <label>Category<select name="category"><option>Antibiotics</option><option>Pain Relief</option><option>Antihistamines</option><option>Diabetes</option><option>Digestive Health</option><option>Supplements</option><option>Respiratory</option></select></label>
-    <label>Unit price<input name="price" type="number" step="0.01" min="0" required></label>
+    <label>Category<select name="category">{{#each categories}}<option>{{this}}</option>{{/each}}</select></label>
+    <label>Price per piece (₱)<input name="price" type="number" step="0.01" min="0" required></label>
     <label>Barcode<input name="barcode" maxlength="64" autocomplete="off" data-scan-accept placeholder="Scan or type (optional)"></label>
+    <label>Counted per (base unit)<select name="unit">{{#each units}}<option value="{{value}}">{{label}}</option>{{/each}}</select></label>
+    <label>Pieces per box<input name="piecesPerBox" type="number" min="1" max="100000" step="1" placeholder="Blank = not sold by box"></label>
+    <label class="span-2">Low-stock alert at (pieces)<input name="reorderLevel" type="number" min="0" step="1" required></label>
   </div>
-  <fieldset class="opening-stock"><legend>Opening stock (optional)</legend><div class="form-grid">
-    <label>Batch / Lot no.<input name="batchNumber" placeholder="e.g. AMX24051"></label>
-    <label>Lot expiry date<input name="expiryDate" type="date"></label>
-    <label>Quantity<input name="quantity" type="number" min="0" value="0"></label>
-    <label>Manufacturer<input name="manufacturer" placeholder="e.g. Unilab"></label>
-  </div></fieldset>
-  <p class="hint edit-only">Quantity and expiry can’t be edited here. Use <b>Receive stock</b>, <b>Dispense</b>, or a lot’s expire/recall action so every change is logged.</p>
-  <button class="primary-btn" type="submit">Save product</button></form></div>
+  <p class="hint">Quantity and expiry can’t be edited here. Use <b>Receive stock</b>, <b>Stock out</b>, or a lot’s expire/recall action so every change is logged. Changing the box size does not change the stock, which is kept in pieces.</p>
+  <button class="primary-btn" type="submit">Save changes</button></form></div>
 
 <div id="stockModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="stockTitle"><form id="stockForm" method="POST"><button type="button" class="modal-close" aria-label="Close dialog" onclick="closeModal('stockModal')">×</button><h2 id="stockTitle">Receive stock</h2>
   <div class="form-grid">
     <label>Batch / Lot no.<input name="batchNumber" required placeholder="As printed on the box"></label>
     <label>Expiry date<input name="expiryDate" type="date" required></label>
-    <label>Quantity received<input name="quantity" type="number" min="1" required></label>
-    <label>Manufacturer<input name="manufacturer" placeholder="Optional"></label>
-    <label class="span-2">Delivery receipt / Invoice no.<input name="reference" maxlength="40" placeholder="Optional, auto-generated if blank"></label>
+    <label>Quantity received<input name="quantity" type="number" min="1" required data-qty></label>
+    <label>Received in<select name="unit" data-qty-unit><option value="piece">Pieces</option><option value="box">Boxes</option></select></label>
+    <label class="span-2">Manufacturer<input name="manufacturer" placeholder="Optional"></label>
+    <label>Supplier<select name="supplierId"><option value="">— Not specified —</option>{{#each suppliers}}<option value="{{id}}">{{name}}</option>{{/each}}</select></label>
+    <label>Delivery receipt / Invoice no.<input name="reference" maxlength="40" placeholder="e.g. DR-10234 (auto if blank)"></label>
+    <label class="span-2">Notes<input name="notes" maxlength="255" placeholder="Optional, e.g. 2 boxes dented"></label>
   </div>
+  <p class="hint stock-preview" data-qty-preview aria-live="polite"></p>
   <button class="primary-btn" type="submit">Record Stock In</button></form></div>
 
-<div id="dispenseModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="dispenseTitle"><form id="dispenseForm" method="POST"><button type="button" class="modal-close" aria-label="Close dialog" onclick="closeModal('dispenseModal')">×</button><h2 id="dispenseTitle">Dispense product</h2>
+<div id="dispenseModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="dispenseTitle"><form id="dispenseForm" method="POST"><button type="button" class="modal-close" aria-label="Close dialog" onclick="closeModal('dispenseModal')">×</button><h2 id="dispenseTitle">Stock out</h2>
+  <p class="hint">For stock that leaves without a sale. Sales are recorded by the POS.</p>
   <p class="hint" id="dispenseAvail"></p>
   <div class="form-grid">
-    <label>Quantity to dispense<input name="quantity" type="number" min="1" required></label>
+    <label>Reason<select name="reasonCode" required><option value="">Choose a reason…</option>{{#each stockOutReasons}}<option value="{{value}}">{{label}}</option>{{/each}}</select></label>
+    <label>Details<input name="notes" maxlength="200" placeholder="Required for Other, e.g. to Branch 2"></label>
+    <label>Quantity<input name="quantity" type="number" min="1" required data-qty></label>
+    <label>Entered in<select name="unit" data-qty-unit><option value="piece">Pieces</option><option value="box">Boxes</option></select></label>
     <label>From lot<select name="batchId" id="dispenseLot"></select></label>
   </div>
+  <p class="hint stock-preview" data-qty-preview aria-live="polite"></p>
   <p class="hint">Tip: scan a product barcode to switch product, or a lot number to pick that lot.</p>
-  <button class="primary-btn" type="submit">Record dispensing</button></form></div>
+  <button class="primary-btn" type="submit">Record stock out</button></form></div>
 
 <div id="archiveModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="archiveTitle"><form id="archiveForm" method="POST"><button type="button" class="modal-close" aria-label="Close dialog" onclick="closeModal('archiveModal')">×</button><h2 id="archiveTitle">Archive product</h2>
   <p class="hint">This is a <b>soft delete</b>. The product is hidden from inventory, but it and all its lots and logs stay in the database. An admin can restore it from the Archive page.</p>
   <label>Reason (required)<textarea name="reason" minlength="5" required placeholder="e.g. Discontinued by supplier"></textarea></label>
   <button class="primary-btn danger-btn" type="submit">Archive product</button></form></div>
 
-<div id="voidModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="voidTitle"><form id="voidForm" method="POST"><button type="button" class="modal-close" aria-label="Close dialog" onclick="closeModal('voidModal')">×</button><h2 id="voidTitle">Void transaction</h2>
-  <p class="hint" id="voidDesc"></p>
-  <p class="hint">Stock is restored to the original lot and a red <span class="badge badge-red">VOID</span> entry is added. The original entry is kept and marked VOIDED. All lines with the same reference are voided together.</p>
-  <label>Reason for void (required)<textarea name="reason" minlength="5" required placeholder="e.g. Customer cancelled before payment"></textarea></label>
-  <button class="primary-btn danger-btn" type="submit">Confirm void</button></form></div>
 
-<div id="staffModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="staffTitle"><form method="POST" action="/staff"><button type="button" class="modal-close" aria-label="Close dialog" onclick="closeModal('staffModal')">×</button><h2 id="staffTitle">Add staff member</h2><div class="form-grid"><label>Name<input name="name" required></label><label>Email<input name="email" type="email" required></label><label>Password<input name="password" value="staff123" required></label><label>Role<select name="role"><option value="staff">Staff</option><option value="admin">Admin</option></select></label></div><button class="primary-btn" type="submit">Add staff</button></form></div>
+<div id="supplierModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="supplierTitle"><form id="supplierForm" method="POST" action="/suppliers"><button type="button" class="modal-close" aria-label="Close dialog" onclick="closeModal('supplierModal')">×</button><h2 id="supplierTitle">Add supplier</h2>
+  <div class="form-grid">
+    <label class="span-2">Supplier name<input name="name" required maxlength="120" placeholder="e.g. Unilab Distribution"></label>
+    <label>Contact person<input name="contactPerson" maxlength="120"></label>
+    <label>Phone<input name="phone" maxlength="40"></label>
+    <label class="span-2">Email<input name="email" type="email" maxlength="120"></label>
+    <label class="span-2">Address<input name="address" maxlength="255"></label>
+  </div>
+  <button class="primary-btn" type="submit">Save supplier</button></form></div>
+
+<div id="staffModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="staffTitle"><form method="POST" action="/staff"><button type="button" class="modal-close" aria-label="Close dialog" onclick="closeModal('staffModal')">×</button><h2 id="staffTitle">Add staff member</h2><div class="form-grid"><label>Name<input name="name" required></label><label>Email<input name="email" type="email" required></label><label>Temporary password<input name="password" type="password" minlength="8" required autocomplete="new-password" placeholder="At least 8 characters"></label><label>Role<select name="role"><option value="staff">Staff</option><option value="admin">Admin</option></select></label></div><button class="primary-btn" type="submit">Add staff</button></form></div>
 <script src="/js/pharma.js"></script>
+<script src="/js/vendor/chart.umd.min.js"></script>
+<script src="/js/analytics.js"></script>
 {{> keyboard}}
 {{> footer }}

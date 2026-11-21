@@ -28,6 +28,7 @@ import path from "path";
 import session from "express-session";
 import flash from "connect-flash";
 import router from "./routes/index.js";
+import posApi from "./routes/posApi.js";
 import fs from 'fs';
 import hbs from "hbs";
 import { fileURLToPath } from "url";
@@ -37,14 +38,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 3002;
+
+import cors from "cors"; // (Make sure this import is at the top with your other imports)
+app.use(cors({
+  origin: true, // Allows requests from your other local ports/systems
+  credentials: true
+}));
+
+// POS device API (API key, no session/cookies). Mounted before the session and body parsers on purpose.
+app.use("/api/pos/v1", posApi);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(process.cwd(), "public")));
 
 app.use(session({
-  secret: "xianfire-secret-key",
+  secret: process.env.SESSION_SECRET || "xianfire-secret-key",
   resave: false,
   saveUninitialized: false
 }));

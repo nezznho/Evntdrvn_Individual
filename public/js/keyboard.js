@@ -109,14 +109,18 @@
   }
 
   // ---------------------------------------------------------------- navigation (same links the sidebar uses)
-  const SECTION_NAMES = { overview: 'Overview', inventory: 'Inventory', batches: 'Batches / Lots', logs: 'Stock logs', staff: 'Staff', archive: 'Archive' };
+  const SECTION_NAMES = { overview: 'Overview', inventory: 'Inventory', lots: 'Batches / Lots', logs: 'Stock logs', staff: 'Staff', archive: 'Archive' };
+  const views = () => window.PharmaViews || null; // public/js/views.js (dashboard only)
   function go(name) {
+    if (name === 'batches') name = 'lots';
     const link = $(`[data-nav="${name}"]`);
     if (!link) return toast(`${SECTION_NAMES[name] || name} is only available to admins.`);
+    // On the dashboard switch views in place (synchronously, so a following highlight/scroll is not undone).
+    if (views()?.has(name)) return void views().show(name);
     link.click();
   }
   function syncNav() {
-    if (!onDashboard) return;
+    if (!onDashboard || views()) return; // views.js owns the active link on the dashboard
     const name = (location.hash || '#overview').slice(1);
     if (!$(`[data-nav="${name}"]`)) return;
     $$('[data-nav]').forEach(a => {
@@ -139,7 +143,7 @@
   }
   function activeKind() {
     if (current?.isConnected) return current.dataset.row === 'lot' ? 'lots' : 'products';
-    return sectionInView() || (location.hash === '#batches' ? 'lots' : 'products');
+    return sectionInView() || (views()?.current() === 'lots' || location.hash === '#batches' ? 'lots' : 'products');
   }
   function highlight(row, { scroll = true } = {}) {
     if (current) { current.classList.remove(...HIGHLIGHT); current.removeAttribute('aria-selected'); }
@@ -186,7 +190,7 @@
     if (!lotSearch) return;
     lotSearch.value = name;
     lotSearch.dispatchEvent(new Event('input', { bubbles: true }));
-    go('batches');
+    go('lots');
     const first = rowsOf('lots')[0];
     highlight(first || null);
     if (!first) toast(`${name} has no lots with stock on hand.`, { kind: 'info' });
@@ -243,16 +247,10 @@
   }
 
   // ---------------------------------------------------------------- actions
+  // Adding a product has its own page (views/product-new.xian); a scanned barcode is pre-filled.
   function addProduct(barcode = '') {
-    const btn = $('[data-action="add-product"]');
-    if (!btn) {
-      if (!isAdmin()) return toast('Only admins can add products.');
-      location.href = '/dashboard?' + new URLSearchParams(barcode ? { barcode } : { add: '1' });
-      return;
-    }
-    btn.click(); // pharma.js openAddProduct()
-    const form = $('#productModal form');
-    if (barcode && form?.elements.barcode) form.elements.barcode.value = barcode;
+    if (!isAdmin()) return toast('Only admins can add products.');
+    location.href = '/products/new' + (barcode ? '?' + new URLSearchParams({ barcode }) : '');
   }
   function focusSearch() {
     const input = $(`[data-search-input="${activeKind()}"]`) || $('[data-search-input]');
@@ -290,14 +288,16 @@
   const registry = [
     { id: 'nav-overview', keys: ['g o'], description: 'Go to Overview', group: 'Navigation', scopes: ['page'], palette: true, run: () => go('overview') },
     { id: 'nav-inventory', keys: ['g i'], description: 'Go to Inventory', group: 'Navigation', scopes: ['page'], palette: true, run: () => go('inventory') },
-    { id: 'nav-batches', keys: ['g b'], description: 'Go to Batches / Lots', group: 'Navigation', scopes: ['page'], palette: true, run: () => go('batches') },
+    { id: 'nav-batches', keys: ['g b'], description: 'Go to Batches / Lots', group: 'Navigation', scopes: ['page'], palette: true, run: () => go('lots') },
     { id: 'nav-logs', keys: ['g l'], description: 'Go to Stock logs', group: 'Navigation', scopes: ['page'], palette: true, admin: true, run: () => go('logs') },
+    { id: 'nav-categories', keys: ['g c'], description: 'Go to Categories', group: 'Navigation', scopes: ['page'], palette: true, admin: true, run: () => go('categories') },
+    { id: 'nav-suppliers', keys: ['g u'], description: 'Go to Suppliers', group: 'Navigation', scopes: ['page'], palette: true, admin: true, run: () => go('suppliers') },
     { id: 'nav-staff', keys: ['g s'], description: 'Go to Staff', group: 'Navigation', scopes: ['page'], palette: true, admin: true, run: () => go('staff') },
     { id: 'nav-archive', keys: ['g a'], description: 'Go to Archive', group: 'Navigation', scopes: ['page'], palette: true, admin: true, run: () => go('archive') },
 
     { id: 'add-product', keys: ['n'], description: 'Add product', group: 'Actions', scopes: ['page'], palette: true, admin: true, keywords: 'new create', run: () => addProduct() },
     { id: 'stock-in', keys: ['r'], description: 'Receive stock (Stock In) for highlighted product', group: 'Actions', scopes: ['page'], palette: true, keywords: 'stock in delivery', run: () => rowAction('stock-in', 'receive stock') },
-    { id: 'dispense', keys: ['d'], description: 'Dispense highlighted product', group: 'Actions', scopes: ['page'], palette: true, keywords: 'stock out sell', run: () => rowAction('dispense', 'dispense') },
+    { id: 'dispense', keys: ['d'], description: 'Stock out highlighted product', group: 'Actions', scopes: ['page'], palette: true, keywords: 'stock out damaged transfer dispense', run: () => rowAction('dispense', 'dispense') },
     { id: 'search', keys: ['/'], description: 'Search the visible table', group: 'Actions', scopes: ['page'], palette: true, keywords: 'find filter', run: focusSearch },
     { id: 'filter', keys: ['f'], description: 'Filter inventory by category', group: 'Actions', scopes: ['page'], palette: true, run: focusFilter },
     { id: 'clear-filters', keys: [], description: 'Clear search and filters', group: 'Actions', scopes: ['page'], palette: true, run: clearFilters },
@@ -591,15 +591,14 @@
 
     if (!product) {
       if (!isAdmin()) return toast(`No product with barcode ${code}. Ask an admin to add it.`);
-      const inPlace = $('[data-action="add-product"]') ? () => addProduct(code) : null; // already on the dashboard: no reload
-      return toast(`No product with barcode ${code}.`, { link: { href: `/dashboard?barcode=${encodeURIComponent(code)}`, text: 'Add product with this barcode', onClick: inPlace } });
+      return toast(`No product with barcode ${code}.`, { link: { href: `/products/new?barcode=${encodeURIComponent(code)}`, text: 'Add product with this barcode' } });
     }
 
     if (dispense) {
       const row = productRowById(product.id);
       const form = $('#dispenseForm');
       if (row && form && typeof window.openDispense === 'function') {
-        if (form.getAttribute('action') === `/products/${product.id}/dispense`) return toast(`${product.label} is already selected.`, { kind: 'info' });
+        if (form.getAttribute('action') === `/products/${product.id}/stock-out`) return toast(`${product.label} is already selected.`, { kind: 'info' });
         const qty = form.elements.quantity.value;
         window.openDispense(row.querySelector('[data-action="dispense"]'));
         form.elements.quantity.value = qty;
@@ -664,11 +663,9 @@
   window.addEventListener('keydown', onKeyDown);
 
   // ---------------------------------------------------------------- page wiring
-  window.addEventListener('hashchange', () => {
-    const section = document.getElementById(location.hash.slice(1));
-    if (current && section && !section.contains(current)) highlight(null);
-    syncNav();
-  });
+  window.addEventListener('hashchange', syncNav);
+  // A highlighted row in a view that has just been hidden is no longer a target for r / d / e / Enter.
+  document.addEventListener('pharma:viewchange', () => { if (current && !visible(current)) highlight(null); });
   // Mouse and keyboard mix: clicking a row makes it the highlighted row.
   document.addEventListener('click', e => {
     const row = e.target.closest?.('tr[data-row]');

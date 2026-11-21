@@ -1,10 +1,16 @@
 import { Sequelize, Op } from "sequelize";
 import { sequelize } from "./models/db.js";
-import { User } from "./models/userModel.js";
+import { User, isHashed } from "./models/userModel.js";
+import { Category } from "./models/categoryModel.js";   // registers the Categories table for sync()
+import { Supplier } from "./models/supplierModel.js";   // registers the Suppliers table for sync()
+import { BASE_CATEGORIES } from "./services/catalogService.js";
 import { Product } from "./models/productModel.js";
 import { Batch } from "./models/batchModel.js";
 import { StockLog } from "./models/stockLogModel.js";
+import { Sale } from "./models/saleModel.js";          // registers the Sales table for sync()
+import { SaleItem } from "./models/saleItemModel.js";  // registers the SaleItems table for sync()
 import * as stock from "./services/stockService.js";
+import { recordSale } from "./services/saleService.js";
 
 const DB = sequelize.config.database;
 const rootSequelize = new Sequelize("mysql", "root", "", { host: "localhost", dialect: "mysql", logging: false });
@@ -31,6 +37,22 @@ const LEGACY_ACTIONS = {
 };
 
 async function migrateLegacyData() {
+  // Passwords: convert any plain-text password to a bcrypt hash (the User model hook hashes on update).
+  let hashed = 0;
+  for (const u of await User.findAll({ paranoid: false })) {
+    if (isHashed(u.password)) continue;
+    u.changed("password", true); // same value, so mark it changed or the hashing hook would skip it
+    await u.save({ fields: ["password"] });
+    hashed++;
+  }
+  if (hashed) console.log(`  ↳ ${hashed} plain-text password(s) converted to bcrypt hashes`);
+
+  // Categories: the defaults plus every category already used by a product.
+  const [used] = await sequelize.query("SELECT DISTINCT `category` AS name FROM `Products` WHERE `category` IS NOT NULL AND `category` <> ''");
+  for (const name of new Set([...BASE_CATEGORIES, ...used.map(r => r.name)])) {
+    await Category.findOrCreate({ where: { name }, defaults: { name } });
+  }
+
   // Products.barcode is added by sync({ alter: true }). Blank strings (e.g. typed in phpMyAdmin) would collide on the unique index.
   await sequelize.query("UPDATE `Products` SET `barcode` = NULL WHERE `barcode` = ''");
   for (const [old, code] of Object.entries(LEGACY_ACTIONS)) {
@@ -56,7 +78,7 @@ async function seed() {
     { name: "Alex Morgan", email: "admin@pharma.com", password: "admin123", role: "admin" },
     { name: "Jamie Wilson", email: "staff@pharma.com", password: "staff123", role: "staff" }
   ]);
-  if (await Product.count({ paranoid: false }) > 0) return;
+  if (await Product.count({ paranoid: false }) > 0) return false;
 
   const admin = (await User.findOne({ where: { role: "admin" } })).get({ plain: true });
   const staff = (await User.findOne({ where: { role: "staff" } }) || await User.findOne()).get({ plain: true });
@@ -84,6 +106,42 @@ async function seed() {
   const voidable = await stock.dispense(ids["Alaxan FR"], { quantity: 5 }, staff);
   const line = await StockLog.findOne({ where: { reference: voidable } });
   await stock.voidTransaction(line.id, "Customer cancelled before payment", admin);
+  return true; // fresh demo database
+}
+
+// Sample sales so the Overview analytics have something to show until the POS module writes real ones.
+// Each sale goes through saleService -> stockService (FEFO, lot quantities, DISPENSED logs), so stock stays consistent.
+// The sale rows are back-dated across the last few years; their stock logs are dated today (the ledger is append-only).
+// Runs automatically on a fresh demo database, or on demand with `npm run seed:sales` (only while SaleItems is empty).
+async function seedSales() {
+  if (await SaleItem.count() > 0) { console.log("  ↳ Sales already exist, sample sales skipped."); return; }
+  const user = (await User.findOne({ where: { role: "staff" } }) || await User.findOne()).get({ plain: true });
+  // The five best-stocked products; the rest stay unsold so the "slow movers" table has examples.
+  const products = await Product.findAll({ where: { quantity: { [Op.gte]: 20 } }, order: [["quantity", "DESC"]], limit: 5, raw: true });
+  if (!products.length) { console.log("  ↳ No products with enough stock for sample sales."); return; }
+
+  let seed = 20261117; // deterministic pseudo-random numbers -> the same sample data on every machine
+  const rand = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+  const now = Date.now(), DAY = 86400000;
+  const times = [
+    ...Array.from({ length: 5 }, (_, i) => now - (i + 1) * 25 * 60000),            // earlier today
+    ...Array.from({ length: 5 }, () => now - DAY - rand() * 6 * 3600000),           // yesterday
+    ...Array.from({ length: 16 }, () => now - (2 + rand() * 28) * DAY),             // rest of the last 30 days
+    ...Array.from({ length: 12 }, () => now - (30 + rand() * 335) * DAY),           // last 12 months
+    ...Array.from({ length: 6 }, () => now - (365 + rand() * 4 * 365) * DAY)        // previous years
+  ].sort((a, b) => a - b);
+
+  let created = 0;
+  for (const t of times) {
+    const picks = [...products].sort(() => rand() - 0.5).slice(0, rand() < 0.6 ? 1 : 2);
+    const items = picks.map(p => ({
+      productId: p.id, qty: 1 + Math.floor(rand() * 3),
+      unitPrice: Number(p.price), unitCost: Math.round(Number(p.price) * (0.66 + rand() * 0.1) * 100) / 100
+    }));
+    try { await recordSale(items, user, { createdAt: new Date(t) }); created++; }
+    catch (err) { if (!(err instanceof stock.StockError)) throw err; } // not enough stock left: skip this sample
+  }
+  console.log(`  ↳ ${created} sample sale(s) recorded through stockService.`);
 }
 
 try {
@@ -92,7 +150,8 @@ try {
   await dropTriggers().catch(() => {}); // tables may not exist yet on a fresh database
   await sequelize.sync({ alter: true });
   await migrateLegacyData();
-  await seed();
+  const fresh = await seed();
+  if (fresh || process.argv.includes("--seed-sales")) await seedSales();
   await createTriggers();
   console.log(`✅ ${DB} database and tables are ready (soft deletes, batch tracking, immutable audit log)`);
 } catch (error) {

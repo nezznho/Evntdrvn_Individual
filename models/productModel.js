@@ -18,6 +18,12 @@ export const Product = sequelize.define("Product", {
   price: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0 },
   // Optional manufacturer barcode (EAN/UPC/GTIN) so a USB scanner can find the product. NULL = none.
   barcode: { type: DataTypes.STRING(64), allowNull: true },
+  // Stock is always counted in this base unit ("piece", "tablet", ...). A box holds piecesPerBox of them;
+  // NULL = the product is only handled per piece. Customers may buy either, so forms accept both.
+  unit: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "piece" },
+  piecesPerBox: { type: DataTypes.INTEGER, allowNull: true, validate: { min: 1 } },
+  // Low-stock alert level in pieces, per product (25 tablets is low, 25 bottles may not be).
+  reorderLevel: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 25, validate: { min: 0 } },
   deletedById: { type: DataTypes.INTEGER, allowNull: true },
   deleteReason: { type: DataTypes.STRING, allowNull: true }
 }, {

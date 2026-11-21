@@ -27,8 +27,7 @@
 import express from "express";
 import { homePage } from "../controllers/homeController.js";
 const router = express.Router();
-// Express 4 does not catch errors from async handlers; this forwards them to the error handler
-// in index.js instead of crashing the whole server.
+
 const safe = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 router.get("/", (req, res) => res.redirect("/dashboard"));
 
@@ -42,24 +41,29 @@ router.get("/forgot-password", forgotPasswordPage);
 router.get("/logout", logoutUser);
 
 import {
-  dashboard, batchDetail, archivePage,
+  dashboard, batchDetail, archivePage, newProductPage,
   addProduct, editProduct, deleteProduct, restoreProduct,
-  updateStock, dispense, expireBatch, recallBatch, voidLog,
+  updateStock, stockOut, expireBatch, recallBatch, voidLog,
+  createCategory, renameCategory, deleteCategory, createSupplier, updateSupplier, archiveSupplier, restoreSupplier,
   addUser, deleteUser, restoreUser,
-  searchApi, productByBarcode
+  searchApi, productByBarcode, statsApi
 } from "../controllers/pharmaController.js";
 
 // Any signed-in user (staff or admin)
 router.get("/dashboard", requireAuth, safe(dashboard));
 router.get("/batches/:id", requireAuth, safe(batchDetail));
 router.post("/products/:id/stock", requireAuth, updateStock);       // Stock In (delivery into a lot)
-router.post("/products/:id/dispense", requireAuth, dispense);       // Stock Out (FEFO)
+// Stock out with a reason (damaged, internal use, transfer...). Sales are recorded by the POS through /api/pos/v1.
+router.post("/products/:id/stock-out", requireAuth, stockOut);
 // JSON API for the command palette and barcode scanner (public/js/keyboard.js)
 router.get("/api/search", requireAuth, safe(searchApi));
 router.get("/api/products/by-barcode/:code", requireAuth, safe(productByBarcode));
+// Overview sales & stock analytics (public/js/analytics.js)
+router.get("/api/dashboard/stats", requireAuth, safe(statsApi));
 
 // Admin only
-router.post("/products", requireAuth, requireAdmin, addProduct);
+router.get("/products/new", requireAuth, requireAdmin, safe(newProductPage));   // separate Add product form
+router.post("/products", requireAuth, requireAdmin, safe(addProduct));
 router.post("/products/:id/edit", requireAuth, requireAdmin, editProduct);
 router.post("/products/:id/delete", requireAuth, requireAdmin, deleteProduct);   // SOFT delete (archive)
 router.post("/products/:id/restore", requireAuth, requireAdmin, restoreProduct);
@@ -70,5 +74,12 @@ router.post("/staff", requireAuth, requireAdmin, addUser);
 router.post("/staff/:id/delete", requireAuth, requireAdmin, deleteUser);         // SOFT delete (deactivate)
 router.post("/staff/:id/restore", requireAuth, requireAdmin, restoreUser);
 router.get("/admin/archive", requireAuth, requireAdmin, safe(archivePage));
+router.post("/categories", requireAuth, requireAdmin, createCategory);
+router.post("/categories/:id/rename", requireAuth, requireAdmin, renameCategory);
+router.post("/categories/:id/delete", requireAuth, requireAdmin, deleteCategory);
+router.post("/suppliers", requireAuth, requireAdmin, createSupplier);
+router.post("/suppliers/:id/edit", requireAuth, requireAdmin, updateSupplier);
+router.post("/suppliers/:id/delete", requireAuth, requireAdmin, archiveSupplier);   // SOFT delete (archive)
+router.post("/suppliers/:id/restore", requireAuth, requireAdmin, restoreSupplier);
 
 export default router;
