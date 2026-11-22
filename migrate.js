@@ -152,6 +152,9 @@ try {
   await migrateLegacyData();
   const fresh = await seed();
   if (fresh || process.argv.includes("--seed-sales")) await seedSales();
+  // Every product needs a code for the POS (Inventory barcode = POS medicine code).
+  const coded = await stock.ensureBarcodes({ id: null, name: "System migration" });
+  if (coded) console.log(`  ↳ ${coded} product(s) without a barcode got an automatic code (INV-...)`);
   await createTriggers();
   console.log(`✅ ${DB} database and tables are ready (soft deletes, batch tracking, immutable audit log)`);
 } catch (error) {

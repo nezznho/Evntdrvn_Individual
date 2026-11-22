@@ -215,7 +215,7 @@ export const addProduct = async (req, res) => {
   try {
     const p = await stock.createProduct(req.body, req.user);
     const opening = p.openingBatch?.received;
-    req.flash("success_msg", opening ? `Product added. ${stockInMessage(p.name, opening)}` : `${p.name} added. Use Receive stock to add its first lot.`);
+    req.flash("success_msg", (opening ? `Product added. ${stockInMessage(p.name, opening)}` : `${p.name} added. Use Receive stock to add its first lot.`) + ` Product code: ${p.barcode} (the POS sees it automatically).`);
     res.redirect("/dashboard#inventory");
   } catch (err) {
     const known = err instanceof stock.StockError || err.name?.startsWith("Sequelize") && err.name !== "SequelizeDatabaseError";

@@ -114,6 +114,44 @@ async function cleanBarcode(raw, t, exceptId = null) {
   return barcode;
 }
 
+// Every product needs a code: the POS and Kiosk find products by it (Inventory barcode = POS medicine code).
+// A product saved without a barcode gets "INV-00013" (from its id); a clash with a typed code adds a suffix.
+async function autoBarcode(product, t) {
+  const base = `INV-${String(product.id).padStart(5, "0")}`;
+  for (let n = 0; n < 50; n++) {
+    const code = n ? `${base}-${n}` : base;
+    if (!(await Product.findOne({ where: { barcode: code }, paranoid: false, transaction: t }))) return code;
+  }
+  throw new StockError("Could not generate a product code. Type a barcode instead.");
+}
+
+/** Gives every product without a barcode an automatic code (run by migrate.js). Returns how many were set. */
+export async function ensureBarcodes(user) {
+  const missing = await Product.findAll({ where: { barcode: null }, paranoid: false, attributes: ["id"], raw: true });
+  for (const { id } of missing) {
+    await sequelize.transaction(async t => {
+      const product = await lockProduct(id, t, { includeArchived: true });
+      if (product.barcode) return;
+      const code = await autoBarcode(product, t);
+      await product.update({ barcode: code }, { transaction: t });
+      await writeLog(t, { action: "PRODUCT_UPDATED", product, user, reason: `Product code ${code} assigned automatically (for the POS)` });
+    });
+  }
+  return missing.length;
+}
+
+/** Sets a product's code (barcode), e.g. to match a code the POS already uses. Logged like any edit. */
+export const assignBarcode = (productId, rawCode, user) => sequelize.transaction(async t => {
+  const product = await lockProduct(productId, t, { includeArchived: true });
+  const code = await cleanBarcode(rawCode, t, product.id);
+  if (!code) throw new StockError("A product code is required.");
+  if (code === product.barcode) return product;
+  const old = product.barcode;
+  await product.update({ barcode: code }, { transaction: t });
+  await writeLog(t, { action: "PRODUCT_UPDATED", product, user, reason: `Product code ${old ? `changed from ${old} to` : "set to"} ${code}` });
+  return product;
+});
+
 // ---------- Product lifecycle ----------
 
 export const createProduct = (data, user) => sequelize.transaction(async t => {
@@ -124,7 +162,8 @@ export const createProduct = (data, user) => sequelize.transaction(async t => {
   const category = await requireCategory(data.category);
   const price = cleanPrice(data.price);
   const product = await Product.create({ name, category, price, quantity: 0, barcode, ...packaging }, { transaction: t });
-  await writeLog(t, { action: "PRODUCT_ADDED", product, user });
+  if (!barcode) await product.update({ barcode: await autoBarcode(product, t) }, { transaction: t });
+  await writeLog(t, { action: "PRODUCT_ADDED", product, user, reason: `Product code ${product.barcode}` });
   // Opening stock is optional, but when given it must come with a lot number and expiry like any delivery.
   // data.unit is the product's base unit here; the opening quantity's unit (piece/box) comes as openingUnit.
   if (Number(data.quantity) > 0) product.openingBatch = await receiveInto(t, product, { ...data, unit: data.openingUnit || "piece" }, user);
@@ -134,7 +173,8 @@ export const createProduct = (data, user) => sequelize.transaction(async t => {
 export const updateProductDetails = (productId, data, user) => sequelize.transaction(async t => {
   const product = await lockProduct(productId, t);
   // Quantity and expiry are intentionally NOT editable here - they only change through logged movements.
-  const barcode = data.barcode === undefined ? product.barcode : await cleanBarcode(data.barcode, t, product.id);
+  // A blank barcode keeps the current code: the POS needs every product to keep one.
+  const barcode = String(data.barcode ?? "").trim() === "" ? product.barcode : await cleanBarcode(data.barcode, t, product.id);
   const name = String(data.name || "").trim();
   if (!name) throw new StockError("Product name is required.");
   // Changing the box size is safe: stock is stored in pieces, so no quantity changes.

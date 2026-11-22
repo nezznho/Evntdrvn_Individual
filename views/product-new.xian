@@ -19,8 +19,8 @@
               <select id="np-category" name="category" required data-sum="category">{{#each categories}}<option>{{this}}</option>{{/each}}</select>
               <small class="np-help">Missing one? <a href="/dashboard#categories">Manage categories</a></small></div>
             <div class="np-field"><label for="np-barcode">Barcode</label>
-              <div class="np-input-icon"><span aria-hidden="true">▥</span><input id="np-barcode" name="barcode" maxlength="64" autocomplete="off" data-scan-accept value="{{barcode}}" placeholder="Scan or type (optional)"></div>
-              <small class="np-help">Must match the medicine code on the POS.</small></div>
+              <div class="np-input-icon"><span aria-hidden="true">▥</span><input id="np-barcode" name="barcode" maxlength="64" autocomplete="off" data-scan-accept value="{{barcode}}" placeholder="Scan, type, or leave blank"></div>
+              <small class="np-help">This is the product code the POS uses. Leave blank to get an automatic code (INV-…).</small></div>
             <div class="np-field"><label for="np-price">Price per piece <span class="np-req" aria-hidden="true">*</span></label>
               <div class="np-affix"><span class="np-prefix">₱</span><input id="np-price" name="price" type="number" step="0.01" min="0" required placeholder="0.00" data-sum="price"><span class="np-suffix" data-unit-suffix>/ pc</span></div></div>
             <div class="np-field"><label>Price per box</label>
